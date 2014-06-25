@@ -1,0 +1,25 @@
+{
+  "name": "championship",
+  "version": "0.0.1",
+  "description": "Gerenciador de campeonatos de futebol para o navegador.",
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "requirejs": "~2.1.14",
+    "jquery": "~1.11.1",
+    "underscore": "~1.6.0",
+    "backbone": "~1.1.2",
+    "marionette": "~1.8.8",
+    "handlebars": "~1.3.0",
+    "moment": "~2.7.0",
+    "bootstrap-sass-official": "~3.1.1",
+    "backbone.localStorage": "~1.1.7"
+  }
+}
