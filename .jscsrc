@@ -1,0 +1,19 @@
+{
+  "requireCurlyBraces": ["if", "else", "for", "while", "do", "try", "catch"],
+  "requireSpaceAfterKeywords": ["if", "else", "for", "while", "do", "switch", "return"],
+  "requireSpaceBeforeBlockStatements": true,
+  "requireParenthesesAroundIIFE": true,
+  "requireSpacesInFunctionExpression": { "beforeOpeningCurlyBrace": true },
+  "disallowSpacesInsideArrayBrackets": true,
+  "disallowSpacesInsideParentheses": true,
+  "disallowMultipleVarDecl": true,
+  "disallowKeywordsOnNewLine": ["else"],
+  "requireSpaceBeforeBinaryOperators": ["=", "+", "-", "/", "*", "==", "===", "!=", "!=="],
+  "requireSpaceAfterBinaryOperators": ["=", "+", "-", "/", "*", "==", "===", "!=", "!=="],
+  "validateIndentation": 2,
+  "validateQuoteMarks": "'",
+  "maximumLineLength": 100,
+  "requireLineFeedAtFileEnd": true,
+  "disallowTrailingWhitespace": true,
+  "disallowMixedSpacesAndTabs": true
+}

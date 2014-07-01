@@ -1,0 +1,27 @@
+{
+  "browser": true,
+  "jquery": true,
+  "devel": false,
+  "globals": {
+    "define": true,
+    "require": true,
+    "module": true
+  },
+  "curly": true,
+  "eqeqeq": true,
+  "freeze": true,
+  "immed": true,
+  "latedef": "nofunc",
+  "newcap": true,
+  "noarg": true,
+  "nonew": true,
+  "quotmark": "single",
+  "undef": true,
+  "unused": true,
+  "strict": true,
+  "trailing": true,
+  "indent": 2,
+  "maxlen": 100,
+  "maxparams": 5,
+  "maxcomplexity": 8
+}
