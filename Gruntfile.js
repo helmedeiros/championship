@@ -9,15 +9,27 @@ module.exports = function (grunt) {
 
     jshint: {
       options: {
-        jshintrc: '.jshintrc'
+        jshintrc: true,
+        reporter: require('jshint-stylish')
       },
       gruntfile: ['Gruntfile.js'],
       src: ['src/**/*.js'],
       test: ['test/**/*.js']
+    },
+
+    mochaTest: {
+      unit: {
+        options: {
+          reporter: 'spec',
+          require: ['test/helpers/setup.js']
+        },
+        src: ['test/spec/**/*_spec.js']
+      }
     }
 
   });
 
   grunt.registerTask('lint', ['jshint']);
-  grunt.registerTask('default', ['lint']);
+  grunt.registerTask('test', ['mochaTest:unit']);
+  grunt.registerTask('default', ['lint', 'test']);
 };
