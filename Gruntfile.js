@@ -1,6 +1,5 @@
-'use strict';
-
 module.exports = function (grunt) {
+  'use strict';
 
   require('load-grunt-tasks')(grunt);
 
@@ -15,19 +14,10 @@ module.exports = function (grunt) {
       gruntfile: ['Gruntfile.js'],
       src: ['src/**/*.js'],
       test: ['test/**/*.js']
-    },
-
-    jscs: {
-      options: {
-        config: '.jscsrc'
-      },
-      gruntfile: ['Gruntfile.js'],
-      src: ['src/**/*.js'],
-      test: ['test/**/*.js']
     }
 
   });
 
-  grunt.registerTask('lint', ['jshint', 'jscs']);
+  grunt.registerTask('lint', ['jshint']);
   grunt.registerTask('default', ['lint']);
 };

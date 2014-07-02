@@ -9,3 +9,5 @@ Thumbs.db
 .vscode/
 *.iml
 coverage/
+package-lock.json
+npm-shrinkwrap.json
