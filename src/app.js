@@ -1,8 +1,10 @@
 module.exports = (function () {
   'use strict';
 
+  var identity = require('./app/identity');
+
   return {
-    NAME: 'championship',
-    VERSION: '0.0.1'
+    NAME: identity.NAME,
+    VERSION: identity.VERSION
   };
 }());
