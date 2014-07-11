@@ -25,11 +25,25 @@ module.exports = function (grunt) {
         },
         src: ['test/spec/**/*_spec.js']
       }
+    },
+
+    clean: {
+      dist: ['dist']
+    },
+
+    copy: {
+      dist: {
+        files: [
+          { expand: true, src: ['index.html'], dest: 'dist/' },
+          { expand: true, src: ['src/**/*'], dest: 'dist/' }
+        ]
+      }
     }
 
   });
 
   grunt.registerTask('lint', ['jshint']);
   grunt.registerTask('test', ['mochaTest:unit']);
+  grunt.registerTask('build', ['clean:dist', 'copy:dist']);
   grunt.registerTask('default', ['lint', 'test']);
 };
