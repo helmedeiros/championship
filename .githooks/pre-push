@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#
+# Pre-push gate: hygiene + lint + tests + build.
+# Push is aborted if any step fails.
+
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if ! command -v node >/dev/null 2>&1; then
+  if [ -d "$HOME/.nvm/versions/node" ]; then
+    LATEST=$(ls -d "$HOME/.nvm/versions/node/"v* 2>/dev/null | sort -V | tail -1)
+    [ -n "$LATEST" ] && export PATH="$LATEST/bin:$PATH"
+  fi
+fi
+
+GRUNT="$ROOT/node_modules/.bin/grunt"
+if [ ! -x "$GRUNT" ]; then
+  echo "[pre-push] node_modules/.bin/grunt not found; run 'npm install' first." >&2
+  exit 1
+fi
+
+exec "$GRUNT" hygiene lint test build

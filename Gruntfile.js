@@ -14,7 +14,8 @@ module.exports = function (grunt) {
       },
       gruntfile: ['Gruntfile.js'],
       src: ['src/**/*.js'],
-      test: ['test/**/*.js']
+      test: ['test/**/*.js'],
+      tools: ['tools/**/*.js']
     },
 
     mochaTest: {
@@ -41,6 +42,36 @@ module.exports = function (grunt) {
     }
 
   });
+
+  grunt.registerTask('hygiene',
+    'Verifica termos proibidos nos arquivos staged',
+    function () {
+      var done = this.async();
+      grunt.util.spawn({
+        cmd: 'node',
+        args: ['tools/hygiene.js']
+      }, function (err, result) {
+        if (result.stdout) { grunt.log.writeln(result.stdout); }
+        if (result.stderr) { grunt.log.error(result.stderr); }
+        done(err ? false : true);
+      });
+    }
+  );
+
+  grunt.registerTask('installhooks',
+    'Copia .githooks/* para .git/hooks/ e marca como executáveis',
+    function () {
+      var done = this.async();
+      grunt.util.spawn({
+        cmd: 'node',
+        args: ['tools/install-hooks.js']
+      }, function (err, result) {
+        if (result.stdout) { grunt.log.writeln(result.stdout); }
+        if (result.stderr) { grunt.log.error(result.stderr); }
+        done(err ? false : true);
+      });
+    }
+  );
 
   grunt.registerTask('lint', ['jshint']);
   grunt.registerTask('test', ['mochaTest:unit']);
