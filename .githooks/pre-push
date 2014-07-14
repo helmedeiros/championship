@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 #
 # Pre-push gate: hygiene + lint + tests + build.
-# Push is aborted if any step fails.
+# Skipped when pushing the gh-pages branch (artefact branch, no devDeps).
 
 set -e
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
+
+PUSH_INFO="$(cat)"
+if echo "$PUSH_INFO" | grep -q 'refs/heads/gh-pages'; then
+  echo "[pre-push] publicação em gh-pages — gates desligados (somente artefatos)"
+  exit 0
+fi
 
 if ! command -v node >/dev/null 2>&1; then
   if [ -d "$HOME/.nvm/versions/node" ]; then
@@ -17,7 +23,7 @@ fi
 
 GRUNT="$ROOT/node_modules/.bin/grunt"
 if [ ! -x "$GRUNT" ]; then
-  echo "[pre-push] node_modules/.bin/grunt not found; run 'npm install' first." >&2
+  echo "[pre-push] node_modules/.bin/grunt não encontrado; rode 'npm install'." >&2
   exit 1
 fi
 
