@@ -39,6 +39,14 @@ module.exports = function (grunt) {
           { expand: true, src: ['src/**/*'], dest: 'dist/' }
         ]
       }
+    },
+
+    'gh-pages': {
+      options: {
+        base: 'dist',
+        message: 'Publicação automática do build atual'
+      },
+      src: ['**/*']
     }
 
   });
@@ -76,5 +84,6 @@ module.exports = function (grunt) {
   grunt.registerTask('lint', ['jshint']);
   grunt.registerTask('test', ['mochaTest:unit']);
   grunt.registerTask('build', ['clean:dist', 'copy:dist']);
+  grunt.registerTask('deploy', ['build', 'gh-pages']);
   grunt.registerTask('default', ['lint', 'test']);
 };
