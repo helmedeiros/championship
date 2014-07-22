@@ -8,7 +8,11 @@ module.exports = (function () {
 
     defaults: {
       name: '',
-      short: ''
+      short: '',
+      colors: [],
+      stadium: '',
+      city: '',
+      foundedAt: null
     },
 
     validate: function (attrs) {

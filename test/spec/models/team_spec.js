@@ -27,4 +27,18 @@ describe('models/Team', function () {
     expect(time.isValid()).to.equal(true);
   });
 
+  it('mantém cores, estádio, cidade e ano de fundação', function () {
+    var time = new Team({
+      name: 'Santos',
+      colors: ['#FFFFFF', '#000000'],
+      stadium: 'Vila Belmiro',
+      city: 'Santos',
+      foundedAt: 1912
+    });
+    expect(time.get('colors')).to.deep.equal(['#FFFFFF', '#000000']);
+    expect(time.get('stadium')).to.equal('Vila Belmiro');
+    expect(time.get('city')).to.equal('Santos');
+    expect(time.get('foundedAt')).to.equal(1912);
+  });
+
 });
