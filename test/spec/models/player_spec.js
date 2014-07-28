@@ -30,4 +30,34 @@ describe('models/Player', function () {
     expect(jogador.validationError).to.equal('O nome do jogador é obrigatório');
   });
 
+  it('rejeita número da camisa fora do intervalo 1-99', function () {
+    var jogador = new Player({ name: 'X', number: 100 });
+    expect(jogador.isValid()).to.equal(false);
+    expect(jogador.validationError).to.equal('O número da camisa precisa estar entre 1 e 99');
+  });
+
+  it('rejeita número da camisa abaixo de 1', function () {
+    var jogador = new Player({ name: 'X', number: 0 });
+    expect(jogador.isValid()).to.equal(false);
+    expect(jogador.validationError).to.equal('O número da camisa precisa estar entre 1 e 99');
+  });
+
+  it('aceita número da camisa nulo (jogador sem número definido)', function () {
+    var jogador = new Player({ name: 'X', number: null });
+    expect(jogador.isValid()).to.equal(true);
+  });
+
+  it('rejeita posição desconhecida', function () {
+    var jogador = new Player({ name: 'X', position: 'XYZ' });
+    expect(jogador.isValid()).to.equal(false);
+    expect(jogador.validationError).to.equal('Posição desconhecida');
+  });
+
+  it('expõe a lista de posições válidas', function () {
+    var Cls = Player;
+    expect(new Cls({ name: 'X' }).POSITIONS).to.deep.equal([
+      'GOL', 'ZAG', 'LAT', 'VOL', 'MEI', 'ATA'
+    ]);
+  });
+
 });
