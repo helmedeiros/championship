@@ -4,7 +4,26 @@ module.exports = (function () {
   var Backbone = require('backbone');
   var messages = require('./messages/player');
 
+  var POSITIONS = ['GOL', 'ZAG', 'LAT', 'VOL', 'MEI', 'ATA'];
+
+  function isKnownPosition(value) {
+    if (!value) { return true; }
+    var i;
+    for (i = 0; i < POSITIONS.length; i = i + 1) {
+      if (POSITIONS[i] === value) { return true; }
+    }
+    return false;
+  }
+
+  function isValidNumber(value) {
+    if (value === null || value === undefined || value === '') { return true; }
+    if (typeof value !== 'number') { return false; }
+    return value >= 1 && value <= 99 && value === Math.floor(value);
+  }
+
   return Backbone.Model.extend({
+
+    POSITIONS: POSITIONS,
 
     defaults: {
       name: '',
@@ -19,6 +38,12 @@ module.exports = (function () {
     validate: function (attrs) {
       if (!attrs.name) {
         return messages.NAME_REQUIRED;
+      }
+      if (!isValidNumber(attrs.number)) {
+        return messages.NUMBER_RANGE;
+      }
+      if (!isKnownPosition(attrs.position)) {
+        return messages.POSITION_UNKNOWN;
       }
     }
 
