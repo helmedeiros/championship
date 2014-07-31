@@ -4,7 +4,19 @@ module.exports = (function () {
   var Backbone = require('backbone');
   var messages = require('./messages/championship');
 
+  var FORMATS = ['league', 'double-round-robin', 'groups-knockout', 'knockout'];
+
+  function isKnownFormat(value) {
+    var i;
+    for (i = 0; i < FORMATS.length; i = i + 1) {
+      if (FORMATS[i] === value) { return true; }
+    }
+    return false;
+  }
+
   return Backbone.Model.extend({
+
+    FORMATS: FORMATS,
 
     defaults: {
       name: '',
@@ -20,6 +32,9 @@ module.exports = (function () {
       }
       if (!attrs.season) {
         return messages.SEASON_REQUIRED;
+      }
+      if (!isKnownFormat(attrs.format)) {
+        return messages.FORMAT_UNKNOWN;
       }
     }
 
