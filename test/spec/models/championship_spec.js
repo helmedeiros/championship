@@ -32,4 +32,25 @@ describe('models/Championship', function () {
     expect(campeonato.validationError).to.equal('A temporada do campeonato é obrigatória');
   });
 
+  it('aceita os formatos liga, ida e volta, grupos+mata-mata e mata-mata', function () {
+    var formatos = ['league', 'double-round-robin', 'groups-knockout', 'knockout'];
+    formatos.forEach(function (formato) {
+      var campeonato = new Championship({ name: 'X', season: 2015, format: formato });
+      expect(campeonato.isValid()).to.equal(true);
+    });
+  });
+
+  it('rejeita formato desconhecido', function () {
+    var campeonato = new Championship({ name: 'X', season: 2015, format: 'inventado' });
+    expect(campeonato.isValid()).to.equal(false);
+    expect(campeonato.validationError).to.equal('Formato de campeonato desconhecido');
+  });
+
+  it('expõe a lista de formatos suportados', function () {
+    var c = new Championship({ name: 'X', season: 2015 });
+    expect(c.FORMATS).to.deep.equal([
+      'league', 'double-round-robin', 'groups-knockout', 'knockout'
+    ]);
+  });
+
 });
