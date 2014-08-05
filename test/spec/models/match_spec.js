@@ -38,4 +38,30 @@ describe('models/Match', function () {
     );
   });
 
+  it('aceita os status scheduled, live, half, finished e postponed', function () {
+    ['scheduled', 'live', 'half', 'finished', 'postponed'].forEach(function (s) {
+      expect(new Match({ home: 'a', away: 'b', status: s }).isValid())
+        .to.equal(true);
+    });
+  });
+
+  it('rejeita status desconhecido', function () {
+    var partida = new Match({ home: 'a', away: 'b', status: 'eternal' });
+    expect(partida.isValid()).to.equal(false);
+    expect(partida.validationError).to.equal('Status de partida desconhecido');
+  });
+
+  it('reconhece partida em andamento com isLive', function () {
+    expect(new Match({ home: 'a', away: 'b', status: 'live' }).isLive()).to.equal(true);
+    expect(new Match({ home: 'a', away: 'b', status: 'half' }).isLive()).to.equal(true);
+    expect(new Match({ home: 'a', away: 'b', status: 'scheduled' }).isLive())
+      .to.equal(false);
+  });
+
+  it('reconhece partida encerrada com isFinished', function () {
+    expect(new Match({ home: 'a', away: 'b', status: 'finished' }).isFinished())
+      .to.equal(true);
+    expect(new Match({ home: 'a', away: 'b' }).isFinished()).to.equal(false);
+  });
+
 });
