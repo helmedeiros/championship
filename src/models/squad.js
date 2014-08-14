@@ -4,6 +4,14 @@ module.exports = (function () {
   var Backbone = require('backbone');
   var messages = require('./messages/squad');
 
+  function contains(list, value) {
+    var i;
+    for (i = 0; i < list.length; i = i + 1) {
+      if (list[i] === value) { return true; }
+    }
+    return false;
+  }
+
   return Backbone.Model.extend({
 
     defaults: {
@@ -21,15 +29,17 @@ module.exports = (function () {
       if (!attrs.championship) {
         return messages.CHAMPIONSHIP_REQUIRED;
       }
+      if (attrs.captain && !contains(attrs.players || [], attrs.captain)) {
+        return messages.CAPTAIN_NOT_IN_SQUAD;
+      }
     },
 
     has: function (playerId) {
-      var players = this.get('players') || [];
-      var i;
-      for (i = 0; i < players.length; i = i + 1) {
-        if (players[i] === playerId) { return true; }
-      }
-      return false;
+      return contains(this.get('players') || [], playerId);
+    },
+
+    setCaptain: function (playerId, options) {
+      return this.set('captain', playerId, options);
     }
 
   });
