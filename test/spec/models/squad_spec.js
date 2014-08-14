@@ -45,4 +45,20 @@ describe('models/Squad', function () {
     expect(elenco.has('p9')).to.equal(false);
   });
 
+  it('rejeita capitão que não está no elenco', function () {
+    var elenco = new Squad({
+      team: 'a', championship: 'x', players: ['p1'], captain: 'p9'
+    });
+    expect(elenco.isValid()).to.equal(false);
+    expect(elenco.validationError).to.equal('O capitão precisa fazer parte do elenco');
+  });
+
+  it('atualiza o capitão via setCaptain', function () {
+    var elenco = new Squad({
+      team: 'a', championship: 'x', players: ['p1', 'p2'], captain: 'p1'
+    });
+    elenco.setCaptain('p2');
+    expect(elenco.get('captain')).to.equal('p2');
+  });
+
 });
