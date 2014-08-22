@@ -1,7 +1,7 @@
 module.exports = (function () {
   'use strict';
 
-  var Backbone = require('backbone');
+  var BaseModel = require('../persistence/base_model');
   var messages = require('./messages/squad');
 
   function contains(list, value) {
@@ -12,7 +12,9 @@ module.exports = (function () {
     return false;
   }
 
-  return Backbone.Model.extend({
+  return BaseModel.extend({
+
+    bucket: 'squads',
 
     defaults: {
       team: null,

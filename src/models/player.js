@@ -1,7 +1,7 @@
 module.exports = (function () {
   'use strict';
 
-  var Backbone = require('backbone');
+  var BaseModel = require('../persistence/base_model');
   var messages = require('./messages/player');
 
   var POSITIONS = ['GOL', 'ZAG', 'LAT', 'VOL', 'MEI', 'ATA'];
@@ -21,7 +21,9 @@ module.exports = (function () {
     return value >= 1 && value <= 99 && value === Math.floor(value);
   }
 
-  return Backbone.Model.extend({
+  return BaseModel.extend({
+
+    bucket: 'players',
 
     POSITIONS: POSITIONS,
 

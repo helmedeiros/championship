@@ -1,7 +1,7 @@
 module.exports = (function () {
   'use strict';
 
-  var Backbone = require('backbone');
+  var BaseModel = require('../persistence/base_model');
   var messages = require('./messages/match');
 
   var STATUSES = ['scheduled', 'live', 'half', 'finished', 'postponed'];
@@ -14,7 +14,9 @@ module.exports = (function () {
     return false;
   }
 
-  return Backbone.Model.extend({
+  return BaseModel.extend({
+
+    bucket: 'matches',
 
     STATUSES: STATUSES,
 
