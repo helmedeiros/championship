@@ -4,6 +4,7 @@ module.exports = (function () {
   var Marionette = require('backbone.marionette');
   var template = require('./list_template');
   var TeamRowView = require('./row_view');
+  var TeamsEmptyView = require('./empty_view');
 
   return Marionette.CompositeView.extend({
 
@@ -12,6 +13,7 @@ module.exports = (function () {
     template: template,
 
     childView: TeamRowView,
+    emptyView: TeamsEmptyView,
     childViewContainer: 'tbody.teams-rows'
 
   });

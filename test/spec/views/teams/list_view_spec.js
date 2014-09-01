@@ -33,10 +33,12 @@ describe('views/teams/ListView', function () {
     expect(names).to.deep.equal(['Atlético-MG', 'Flamengo', 'Vasco']);
   });
 
-  it('renderiza tabela vazia quando não há times', function () {
+  it('mostra mensagem amigável quando não há times', function () {
     var view = new TeamsListView({ collection: new Teams() });
     view.render();
     expect(view.$('tbody tr.team-row')).to.have.length(0);
+    expect(view.$('tbody tr.teams-empty')).to.have.length(1);
+    expect(view.$('tbody tr.teams-empty').text()).to.match(/Nenhum time/);
   });
 
 });
