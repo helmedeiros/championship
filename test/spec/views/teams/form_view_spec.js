@@ -59,6 +59,24 @@ describe('views/teams/FormView', function () {
     expect(BaseModel.getStorage().list('teams')).to.have.length(0);
   });
 
+  it('exibe banner de erro quando a validação falha', function () {
+    var view = new TeamFormView({ model: new Team() }).render();
+    document.body.appendChild(view.el);
+    view.$('form.team-form').submit();
+    expect(view.$('.form-error-banner')).to.have.length(1);
+    expect(view.$('.form-error-banner').text()).to.match(/nome do time/);
+  });
+
+  it('limpa o banner de erro quando a submissão seguinte é válida', function () {
+    var view = new TeamFormView({ model: new Team() }).render();
+    document.body.appendChild(view.el);
+    view.$('form.team-form').submit();
+    expect(view.$('.form-error-banner')).to.have.length(1);
+    view.$('input[name="name"]').val('Palmeiras');
+    view.$('form.team-form').submit();
+    expect(view.$('.form-error-banner')).to.have.length(0);
+  });
+
   it('dispara form:cancel ao clicar em Cancelar', function () {
     var view = new TeamFormView({ model: new Team() }).render();
     document.body.appendChild(view.el);
