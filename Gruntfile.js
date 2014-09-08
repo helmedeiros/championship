@@ -28,6 +28,16 @@ module.exports = function (grunt) {
       }
     },
 
+    browserify: {
+      dist: {
+        src: ['src/main.js'],
+        dest: 'dist/bundle.js',
+        options: {
+          browserifyOptions: { debug: false }
+        }
+      }
+    },
+
     clean: {
       dist: ['dist']
     },
@@ -36,7 +46,7 @@ module.exports = function (grunt) {
       dist: {
         files: [
           { expand: true, src: ['index.html'], dest: 'dist/' },
-          { expand: true, src: ['src/**/*'], dest: 'dist/' }
+          { expand: true, src: ['src/styles/**/*'], dest: 'dist/' }
         ]
       }
     },
@@ -83,7 +93,7 @@ module.exports = function (grunt) {
 
   grunt.registerTask('lint', ['jshint']);
   grunt.registerTask('test', ['mochaTest:unit']);
-  grunt.registerTask('build', ['clean:dist', 'copy:dist']);
+  grunt.registerTask('build', ['clean:dist', 'browserify:dist', 'copy:dist']);
   grunt.registerTask('deploy', ['build', 'gh-pages']);
   grunt.registerTask('default', ['lint', 'test']);
 };
