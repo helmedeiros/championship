@@ -9,17 +9,26 @@
   <link rel="stylesheet" href="src/styles/app.css">
 </head>
 <body>
-  <nav class="navbar navbar-default" role="navigation">
+  <nav class="navbar navbar-default" role="navigation" id="regiao-navegacao">
     <div class="container">
       <div class="navbar-header">
         <a class="navbar-brand" href="#/">championship</a>
       </div>
+      <ul class="nav navbar-nav">
+        <li><a href="#/times">Times</a></li>
+        <li><a href="#/campeonatos">Campeonatos</a></li>
+        <li><a href="#/admin">Admin</a></li>
+      </ul>
     </div>
   </nav>
 
   <div class="container">
-    <h1>Em construção</h1>
-    <p class="lead">Gerenciador de campeonatos de futebol para o navegador.</p>
+    <div id="regiao-mensagens"></div>
+    <div id="regiao-principal">
+      <h1>Carregando&hellip;</h1>
+    </div>
   </div>
+
+  <script src="bundle.js"></script>
 </body>
 </html>
