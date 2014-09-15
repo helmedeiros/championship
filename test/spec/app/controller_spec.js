@@ -15,6 +15,8 @@ describe('app/Controller', function () {
   var controller;
 
   beforeEach(function () {
+    require('../../helpers/dom')({ reset: true });
+    Backbone.$ = $;
     document.body.innerHTML =
       '<div id="regiao-navegacao"></div>' +
       '<div id="regiao-principal"></div>' +
