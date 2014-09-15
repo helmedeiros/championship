@@ -16570,13 +16570,113 @@ process.umask = function() { return 0; };
 module.exports = (function () {
   'use strict';
 
+  function Controller(deps) {
+    this.app = deps.app;
+    this.Marionette = deps.Marionette;
+  }
+
+  function placeholder(Marionette, title, body) {
+    return new (Marionette.ItemView.extend({
+      template: function () {
+        return '<h2>' + title + '</h2><p class="lead">' + body + '</p>';
+      }
+    }))();
+  }
+
+  Controller.prototype._show = function (view) {
+    var main = this.app.getRegion('mainRegion');
+    if (main) { main.show(view); }
+  };
+
+  Controller.prototype.home = function () {
+    this._show(placeholder(this.Marionette, 'championship',
+      'Bem-vindo. Navegue pelos times e campeonatos no menu.'));
+  };
+
+  Controller.prototype.championshipsList = function () {
+    this._show(placeholder(this.Marionette, 'Campeonatos',
+      'Em breve: lista de campeonatos.'));
+  };
+
+  Controller.prototype.championshipsShow = function (id) {
+    this._show(placeholder(this.Marionette, 'Campeonato ' + id,
+      'Em breve: detalhes do campeonato.'));
+  };
+
+  Controller.prototype.matchShow = function (id) {
+    this._show(placeholder(this.Marionette, 'Partida ' + id,
+      'Em breve: ao vivo e estatísticas da partida.'));
+  };
+
+  Controller.prototype.teamsShow = function (id) {
+    this._show(placeholder(this.Marionette, 'Time ' + id,
+      'Em breve: detalhes do time.'));
+  };
+
+  Controller.prototype.importer = function () {
+    this._show(placeholder(this.Marionette, 'Importar',
+      'Em breve: importação de Copa do Mundo e Brasileirão.'));
+  };
+
+  Controller.prototype.notFound = function () {
+    this._show(placeholder(this.Marionette, 'Página não encontrada',
+      'A rota acessada não existe ou ainda não foi implementada.'));
+  };
+
+  // Admin handlers reuse the same placeholder pattern for now.
+  ['admin.home', 'admin.championshipsList', 'admin.championshipNew',
+   'admin.teamsList', 'admin.teamNew', 'admin.teamEdit',
+   'admin.scoreboard'].forEach(function (name) {
+    Controller.prototype[name] = function () {
+      this._show(placeholder(this.Marionette, 'Admin / ' + name,
+        'Em breve: ferramenta da área administrativa.'));
+    };
+  });
+
+  module.exports = Controller;
+  return Controller;
+}());
+
+},{}],9:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
   return {
     NAME: 'championship',
     VERSION: '0.0.1'
   };
 }());
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  return {
+
+    routes: {
+      '':                       'home',
+      'campeonatos':            'championshipsList',
+      'campeonatos/:id':        'championshipsShow',
+      'partidas/:id':           'matchShow',
+      'times':                  'teamsList',
+      'times/:id':              'teamsShow',
+      'importar':               'importer',
+      'admin':                  'admin.home',
+      'admin/campeonatos':      'admin.championshipsList',
+      'admin/campeonatos/novo': 'admin.championshipNew',
+      'admin/times':            'admin.teamsList',
+      'admin/times/novo':       'admin.teamNew',
+      'admin/times/:id':        'admin.teamEdit',
+      'admin/partidas/:id/scoreboard': 'admin.scoreboard',
+      'nao-encontrado':         'notFound'
+    },
+
+    adminPrefix: 'admin/'
+
+  };
+}());
+
+},{}],11:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16599,28 +16699,60 @@ module.exports = (function () {
   };
 }());
 
-},{"./identity":8}],10:[function(require,module,exports){
+},{"./identity":9}],12:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var BaseCollection = require('../persistence/base_collection');
+  var Team = require('../models/team');
+
+  return BaseCollection.extend({
+    model: Team,
+    comparator: 'name'
+  });
+}());
+
+},{"../models/team":15,"../persistence/base_collection":16}],13:[function(require,module,exports){
 (function (process){
 (function () {
   'use strict';
 
-  var identity = require('./app/identity');
   var runtime = require('./app/runtime');
+  var routerConfig = require('./app/router');
+  var Controller = require('./app/controller');
+  var Teams = require('./collections/teams');
+  var TeamsListView = require('./views/teams/list_view');
   var BaseModel = require('./persistence/base_model');
   var LocalStorageAdapter = require('./persistence/local_storage_adapter');
 
-  function buildWelcomeView(Marionette) {
-    return Marionette.ItemView.extend({
-      template: function () {
-        return '' +
-          '<div class="jumbotron">' +
-            '<h1>championship</h1>' +
-            '<p class="lead">Aplicação ' + identity.NAME +
-            ' versão ' + identity.VERSION + ' carregada.</p>' +
-            '<p><a class="btn btn-primary" href="#/times">Ver times</a></p>' +
-          '</div>';
+  var SEED_TEAMS = [
+    { id: 'sao', name: 'São Paulo',   short: 'SAO',
+      city: 'São Paulo', stadium: 'Morumbi' },
+    { id: 'cor', name: 'Corinthians', short: 'COR',
+      city: 'São Paulo', stadium: 'Arena Corinthians' },
+    { id: 'san', name: 'Santos',      short: 'SAN',
+      city: 'Santos',    stadium: 'Vila Belmiro' },
+    { id: 'pal', name: 'Palmeiras',   short: 'PAL',
+      city: 'São Paulo', stadium: 'Allianz Parque' }
+  ];
+
+  function seedTeams() {
+    var storage = BaseModel.getStorage();
+    if (!storage || storage.list('teams').length > 0) { return; }
+    SEED_TEAMS.forEach(function (attrs) { storage.create('teams', attrs); });
+  }
+
+  function bindRouter(Backbone, controller) {
+    var Router = Backbone.Router.extend({ routes: routerConfig.routes });
+    var router = new Router();
+    Object.keys(routerConfig.routes).forEach(function (route) {
+      var handlerName = routerConfig.routes[route];
+      var handler = controller[handlerName];
+      if (typeof handler === 'function') {
+        router.on('route:' + handlerName, handler.bind(controller));
       }
     });
+    return router;
   }
 
   function createApp(deps) {
@@ -16635,14 +16767,27 @@ module.exports = (function () {
     var app = new Marionette.Application();
     app.addRegions(runtime.regions);
 
+    var controller = new Controller({ app: app, Marionette: Marionette });
+
+    controller.teamsList = function () {
+      seedTeams();
+      var teams = new Teams();
+      teams.fetch();
+      app.getRegion('mainRegion').show(new TeamsListView({ collection: teams }));
+    };
+
     app.addInitializer(function () {
       BaseModel.setStorage(storageFactory());
     });
 
-    var WelcomeView = buildWelcomeView(Marionette);
     app.on('start', function () {
-      var main = app.getRegion('mainRegion');
-      if (main) { main.show(new WelcomeView()); }
+      bindRouter(Backbone, controller);
+      if (!Backbone.History.started) {
+        Backbone.history.start();
+      }
+      if (!Backbone.history.fragment) {
+        controller.home();
+      }
     });
 
     return app;
@@ -16651,8 +16796,7 @@ module.exports = (function () {
   module.exports = createApp;
   module.exports.createApp = createApp;
 
-  // Auto-boot in real browser environments only. `process` (Node global)
-  // being absent is the marker — Node tests, even with jsdom, keep `process`.
+  // Auto-boot in real browser environments only.
   if (typeof process === 'undefined' &&
       typeof window !== 'undefined' &&
       typeof window.document !== 'undefined') {
@@ -16671,7 +16815,85 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/identity":8,"./app/runtime":9,"./persistence/base_model":11,"./persistence/local_storage_adapter":12,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],11:[function(require,module,exports){
+},{"./app/controller":8,"./app/router":10,"./app/runtime":11,"./collections/teams":12,"./persistence/base_model":17,"./persistence/local_storage_adapter":18,"./views/teams/list_view":22,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],14:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  return {
+    NAME_REQUIRED: 'O nome do time é obrigatório'
+  };
+}());
+
+},{}],15:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var BaseModel = require('../persistence/base_model');
+  var messages = require('./messages/team');
+
+  return BaseModel.extend({
+
+    bucket: 'teams',
+
+    defaults: {
+      name: '',
+      short: '',
+      colors: [],
+      stadium: '',
+      city: '',
+      foundedAt: null
+    },
+
+    validate: function (attrs) {
+      if (!attrs.name) {
+        return messages.NAME_REQUIRED;
+      }
+    }
+
+  });
+}());
+
+},{"../persistence/base_model":17,"./messages/team":14}],16:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Backbone = require('backbone');
+  var BaseModel = require('./base_model');
+
+  return Backbone.Collection.extend({
+
+    bucket: null,
+
+    _bucketName: function () {
+      if (this.bucket) { return this.bucket; }
+      if (this.model && this.model.prototype && this.model.prototype.bucket) {
+        return this.model.prototype.bucket;
+      }
+      throw new Error('Coleção sem bucket de armazenamento definido');
+    },
+
+    sync: function (method, collection, options) {
+      var opts = options || {};
+      var done = opts.success || function () {};
+      var fail = opts.error || function () {};
+      var storage = BaseModel.getStorage();
+      try {
+        if (method !== 'read') {
+          throw new Error('Coleções só suportam sync read; salve modelos individualmente');
+        }
+        var records = storage.list(collection._bucketName());
+        done(records);
+        return records;
+      } catch (err) {
+        fail(err);
+        throw err;
+      }
+    }
+
+  });
+}());
+
+},{"./base_model":17,"backbone":4}],17:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16740,7 +16962,7 @@ module.exports = (function () {
   return BaseModel;
 }());
 
-},{"backbone":4}],12:[function(require,module,exports){
+},{"backbone":4}],18:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16853,4 +17075,104 @@ module.exports = (function () {
   return LocalStorageAdapter;
 }());
 
-},{}]},{},[10]);
+},{}],19:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  return function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  };
+}());
+
+},{}],20:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+
+  return Marionette.ItemView.extend({
+    tagName: 'tr',
+    className: 'teams-empty',
+    template: function () {
+      return '<td colspan="4" class="text-muted">Nenhum time cadastrado.</td>';
+    }
+  });
+}());
+
+},{"backbone.marionette":2}],21:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  return function listTemplate() {
+    return '' +
+      '<thead>' +
+        '<tr>' +
+          '<th>Time</th>' +
+          '<th>Sigla</th>' +
+          '<th>Cidade</th>' +
+          '<th>Estádio</th>' +
+        '</tr>' +
+      '</thead>' +
+      '<tbody class="teams-rows"></tbody>';
+  };
+}());
+
+},{}],22:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var template = require('./list_template');
+  var TeamRowView = require('./row_view');
+  var TeamsEmptyView = require('./empty_view');
+
+  return Marionette.CompositeView.extend({
+
+    tagName: 'table',
+    className: 'table table-striped table-hover teams-list',
+    template: template,
+
+    childView: TeamRowView,
+    emptyView: TeamsEmptyView,
+    childViewContainer: 'tbody.teams-rows'
+
+  });
+}());
+
+},{"./empty_view":20,"./list_template":21,"./row_view":24,"backbone.marionette":2}],23:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var escapeHtml = require('../helpers/escape_html');
+
+  return function rowTemplate(data) {
+    return '' +
+      '<td class="team-name">' + escapeHtml(data.name) + '</td>' +
+      '<td class="team-short">' + escapeHtml(data.short) + '</td>' +
+      '<td class="team-city">' + escapeHtml(data.city) + '</td>' +
+      '<td class="team-stadium">' + escapeHtml(data.stadium) + '</td>';
+  };
+}());
+
+},{"../helpers/escape_html":19}],24:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var template = require('./row_template');
+
+  return Marionette.ItemView.extend({
+
+    tagName: 'tr',
+    className: 'team-row',
+    template: template
+
+  });
+}());
+
+},{"./row_template":23,"backbone.marionette":2}]},{},[13]);
