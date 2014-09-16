@@ -1,3 +1,4 @@
+/* global process */
 (function () {
   'use strict';
 
@@ -80,8 +81,14 @@
   module.exports = createApp;
   module.exports.createApp = createApp;
 
-  // Auto-boot in real browser environments only.
-  if (typeof process === 'undefined' &&
+  // Auto-boot in real browser environments only. Detect Node by checking
+  // for `process.versions.node` — browserify provides a `process` shim but
+  // never `process.versions.node`, so this differentiates browser-via-bundle
+  // from a Node test runner.
+  var isNode = typeof process !== 'undefined' &&
+               process.versions &&
+               process.versions.node;
+  if (!isNode &&
       typeof window !== 'undefined' &&
       typeof window.document !== 'undefined') {
     var browser$ = require('jquery');
