@@ -25,6 +25,13 @@ module.exports = function (grunt) {
           require: ['test/helpers/setup.js']
         },
         src: ['test/spec/**/*_spec.js']
+      },
+      smoke: {
+        options: {
+          reporter: 'spec',
+          timeout: 8000
+        },
+        src: ['test/smoke/**/*_spec.js']
       }
     },
 
@@ -94,6 +101,8 @@ module.exports = function (grunt) {
   grunt.registerTask('lint', ['jshint']);
   grunt.registerTask('test', ['mochaTest:unit']);
   grunt.registerTask('build', ['clean:dist', 'browserify:dist', 'copy:dist']);
+  grunt.registerTask('smoke', ['mochaTest:smoke']);
+  grunt.registerTask('verify', ['hygiene', 'lint', 'test', 'build', 'smoke']);
   grunt.registerTask('deploy', ['build', 'gh-pages']);
   grunt.registerTask('default', ['lint', 'test']);
 };

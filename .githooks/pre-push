@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Pre-push gate: hygiene + lint + tests + build.
+# Pre-push gate: hygiene + lint + unit tests + build + browser smoke.
 # Skipped when pushing the gh-pages branch (artefact branch, no devDeps).
 
 set -e
@@ -27,4 +27,4 @@ if [ ! -x "$GRUNT" ]; then
   exit 1
 fi
 
-exec "$GRUNT" hygiene lint test build
+exec "$GRUNT" verify
