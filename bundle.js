@@ -16718,6 +16718,24 @@ module.exports = (function () {
 (function () {
   'use strict';
 
+  // CRITICAL ORDER: jQuery must be on Backbone.$ BEFORE Marionette is required,
+  // because Marionette captures Backbone.$.Deferred at its own module-load
+  // time. Loading Marionette first leaves Marionette.Deferred undefined and
+  // every Marionette.Application instantiation explodes.
+  var Backbone = require('backbone');
+  var jq = require('jquery');
+  if (typeof jq.fn === 'undefined' && typeof window !== 'undefined') {
+    jq = jq(window);
+  }
+  Backbone.$ = jq;
+
+  // Now safe to load Marionette and anything that transitively pulls it in.
+  var Marionette = require('backbone.marionette');
+  if (typeof Marionette.Deferred !== 'function') {
+    Marionette.Deferred = jq.Deferred;
+  }
+
+  var identity = require('./app/identity');
   var runtime = require('./app/runtime');
   var routerConfig = require('./app/router');
   var Controller = require('./app/controller');
@@ -16743,8 +16761,8 @@ module.exports = (function () {
     SEED_TEAMS.forEach(function (attrs) { storage.create('teams', attrs); });
   }
 
-  function bindRouter(Backbone, controller) {
-    var Router = Backbone.Router.extend({ routes: routerConfig.routes });
+  function bindRouter(BackboneRef, controller) {
+    var Router = BackboneRef.Router.extend({ routes: routerConfig.routes });
     var router = new Router();
     Object.keys(routerConfig.routes).forEach(function (route) {
       var handlerName = routerConfig.routes[route];
@@ -16757,18 +16775,21 @@ module.exports = (function () {
   }
 
   function createApp(deps) {
-    var Marionette = deps.Marionette;
-    var Backbone = deps.Backbone;
-    var $ = deps.$;
-    var storageFactory = deps.storageFactory ||
+    var MarionetteDep = (deps && deps.Marionette) || Marionette;
+    var BackboneDep = (deps && deps.Backbone) || Backbone;
+    var $ = (deps && deps.$) || jq;
+    var storageFactory = (deps && deps.storageFactory) ||
       function () { return new LocalStorageAdapter(); };
 
-    Backbone.$ = $;
+    BackboneDep.$ = $;
+    if (typeof MarionetteDep.Deferred !== 'function') {
+      MarionetteDep.Deferred = $.Deferred;
+    }
 
-    var app = new Marionette.Application();
+    var app = new MarionetteDep.Application();
     app.addRegions(runtime.regions);
 
-    var controller = new Controller({ app: app, Marionette: Marionette });
+    var controller = new Controller({ app: app, Marionette: MarionetteDep });
 
     controller.teamsList = function () {
       seedTeams();
@@ -16782,11 +16803,11 @@ module.exports = (function () {
     });
 
     app.on('start', function () {
-      bindRouter(Backbone, controller);
-      if (!Backbone.History.started) {
-        Backbone.history.start();
+      bindRouter(BackboneDep, controller);
+      if (!BackboneDep.History.started) {
+        BackboneDep.history.start();
       }
-      if (!Backbone.history.fragment) {
+      if (!BackboneDep.history.fragment) {
         controller.home();
       }
     });
@@ -16796,33 +16817,28 @@ module.exports = (function () {
 
   module.exports = createApp;
   module.exports.createApp = createApp;
+  module.exports.identity = identity;
 
-  // Auto-boot in real browser environments only. Detect Node by checking
-  // for `process.versions.node` — browserify provides a `process` shim but
-  // never `process.versions.node`, so this differentiates browser-via-bundle
-  // from a Node test runner.
+  // Auto-boot in real browser environments. Detect Node by process.versions.node
+  // (browserify never sets that, even though it shims `process` itself).
   var isNode = typeof process !== 'undefined' &&
                process.versions &&
                process.versions.node;
   if (!isNode &&
       typeof window !== 'undefined' &&
       typeof window.document !== 'undefined') {
-    var browser$ = require('jquery');
-    if (typeof browser$.fn === 'undefined') {
-      browser$ = browser$(window);
-    }
     var browserApp = createApp({
-      Marionette: require('backbone.marionette'),
-      Backbone: require('backbone'),
-      $: browser$
+      Marionette: Marionette,
+      Backbone: Backbone,
+      $: jq
     });
-    browser$(function () { browserApp.start(); });
+    jq(function () { browserApp.start(); });
     module.exports.instance = browserApp;
   }
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/router":10,"./app/runtime":11,"./collections/teams":12,"./persistence/base_model":17,"./persistence/local_storage_adapter":18,"./views/teams/list_view":22,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],14:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/router":10,"./app/runtime":11,"./collections/teams":12,"./persistence/base_model":17,"./persistence/local_storage_adapter":18,"./views/teams/list_view":22,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],14:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
