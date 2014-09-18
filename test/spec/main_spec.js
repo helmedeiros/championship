@@ -57,4 +57,12 @@ describe('main/createApp', function () {
     expect($('#regiao-principal tbody tr.team-row').length).to.be.above(0);
   });
 
+  it('renderiza TeamFormView ao acessar #/admin/campeonatos/novo', function () {
+    var app = instance();
+    app.start();
+    Backbone.history.navigate('admin/times/novo', { trigger: true });
+    expect($('#regiao-principal form.team-form').length).to.equal(1);
+    expect($('#regiao-principal input[name="name"]').length).to.equal(1);
+  });
+
 });

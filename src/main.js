@@ -23,8 +23,10 @@
   var runtime = require('./app/runtime');
   var routerConfig = require('./app/router');
   var Controller = require('./app/controller');
+  var Team = require('./models/team');
   var Teams = require('./collections/teams');
   var TeamsListView = require('./views/teams/list_view');
+  var TeamFormView = require('./views/teams/form_view');
   var BaseModel = require('./persistence/base_model');
   var LocalStorageAdapter = require('./persistence/local_storage_adapter');
 
@@ -80,6 +82,14 @@
       var teams = new Teams();
       teams.fetch();
       app.getRegion('mainRegion').show(new TeamsListView({ collection: teams }));
+    };
+
+    controller['admin.teamNew'] = function () {
+      var form = new TeamFormView({ model: new Team() });
+      form.on('form:saved form:cancel', function () {
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      app.getRegion('mainRegion').show(form);
     };
 
     app.addInitializer(function () {
