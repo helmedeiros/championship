@@ -16739,8 +16739,10 @@ module.exports = (function () {
   var runtime = require('./app/runtime');
   var routerConfig = require('./app/router');
   var Controller = require('./app/controller');
+  var Team = require('./models/team');
   var Teams = require('./collections/teams');
   var TeamsListView = require('./views/teams/list_view');
+  var TeamFormView = require('./views/teams/form_view');
   var BaseModel = require('./persistence/base_model');
   var LocalStorageAdapter = require('./persistence/local_storage_adapter');
 
@@ -16798,6 +16800,14 @@ module.exports = (function () {
       app.getRegion('mainRegion').show(new TeamsListView({ collection: teams }));
     };
 
+    controller['admin.teamNew'] = function () {
+      var form = new TeamFormView({ model: new Team() });
+      form.on('form:saved form:cancel', function () {
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      app.getRegion('mainRegion').show(form);
+    };
+
     app.addInitializer(function () {
       BaseModel.setStorage(storageFactory());
     });
@@ -16838,7 +16848,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/router":10,"./app/runtime":11,"./collections/teams":12,"./persistence/base_model":17,"./persistence/local_storage_adapter":18,"./views/teams/list_view":22,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],14:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/router":10,"./app/runtime":11,"./collections/teams":12,"./models/team":15,"./persistence/base_model":17,"./persistence/local_storage_adapter":18,"./views/teams/form_view":22,"./views/teams/list_view":24,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],14:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17131,6 +17141,93 @@ module.exports = (function () {
 module.exports = (function () {
   'use strict';
 
+  var escapeHtml = require('../helpers/escape_html');
+
+  function input(field, label, value) {
+    return '' +
+      '<div class="form-group" data-field="' + field + '">' +
+        '<label class="control-label" for="time-' + field + '">' + label + '</label>' +
+        '<input type="text" id="time-' + field + '" name="' + field + '" ' +
+               'class="form-control" value="' + escapeHtml(value) + '">' +
+        '<span class="help-block error-message"></span>' +
+      '</div>';
+  }
+
+  return function formTemplate(data) {
+    return '' +
+      '<form class="team-form form-horizontal">' +
+        input('name',    'Nome',    data.name) +
+        input('short',   'Sigla',   data.short) +
+        input('city',    'Cidade',  data.city) +
+        input('stadium', 'Estádio', data.stadium) +
+        '<div class="form-actions">' +
+          '<button type="submit" class="btn btn-primary">Salvar</button>' +
+          '<button type="button" class="btn btn-default cancel">Cancelar</button>' +
+        '</div>' +
+      '</form>';
+  };
+}());
+
+},{"../helpers/escape_html":19}],22:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var template = require('./form_template');
+  var escapeHtml = require('../helpers/escape_html');
+
+  return Marionette.ItemView.extend({
+
+    template: template,
+
+    events: {
+      'submit form.team-form': 'onSubmit',
+      'click .cancel':         'onCancel'
+    },
+
+    onSubmit: function (e) {
+      if (e && e.preventDefault) { e.preventDefault(); }
+      var attrs = {
+        name:    this.$('input[name="name"]').val(),
+        short:   this.$('input[name="short"]').val(),
+        city:    this.$('input[name="city"]').val(),
+        stadium: this.$('input[name="stadium"]').val()
+      };
+      if (!this.model.set(attrs, { validate: true })) {
+        this.showError(this.model.validationError);
+        this.trigger('form:invalid', this.model.validationError);
+        return false;
+      }
+      this.clearError();
+      this.model.save();
+      this.trigger('form:saved', this.model);
+      return true;
+    },
+
+    onCancel: function () {
+      this.trigger('form:cancel');
+    },
+
+    showError: function (message) {
+      this.clearError();
+      this.$('form.team-form').prepend(
+        '<div class="alert alert-danger form-error-banner">' +
+          escapeHtml(message) +
+        '</div>'
+      );
+    },
+
+    clearError: function () {
+      this.$('.form-error-banner').remove();
+    }
+
+  });
+}());
+
+},{"../helpers/escape_html":19,"./form_template":21,"backbone.marionette":2}],23:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
   return function listTemplate() {
     return '' +
       '<thead>' +
@@ -17145,7 +17242,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],22:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17167,7 +17264,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":20,"./list_template":21,"./row_view":24,"backbone.marionette":2}],23:[function(require,module,exports){
+},{"./empty_view":20,"./list_template":23,"./row_view":26,"backbone.marionette":2}],25:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17182,7 +17279,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":19}],24:[function(require,module,exports){
+},{"../helpers/escape_html":19}],26:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17198,4 +17295,4 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":23,"backbone.marionette":2}]},{},[13]);
+},{"./row_template":25,"backbone.marionette":2}]},{},[13]);
