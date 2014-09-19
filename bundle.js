@@ -16808,6 +16808,16 @@ module.exports = (function () {
       app.getRegion('mainRegion').show(form);
     };
 
+    controller['admin.teamEdit'] = function (id) {
+      var team = new Team({ id: id });
+      team.fetch();
+      var form = new TeamFormView({ model: team });
+      form.on('form:saved form:cancel', function () {
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      app.getRegion('mainRegion').show(form);
+    };
+
     app.addInitializer(function () {
       BaseModel.setStorage(storageFactory());
     });
