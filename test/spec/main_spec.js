@@ -65,4 +65,15 @@ describe('main/createApp', function () {
     expect($('#regiao-principal input[name="name"]').length).to.equal(1);
   });
 
+  it('renderiza TeamFormView pré-preenchido em #/admin/times/:id', function () {
+    var app = instance();
+    app.start();
+    BaseModel.getStorage().create('teams', {
+      id: 'flu', name: 'Fluminense', short: 'FLU', city: 'Rio'
+    });
+    Backbone.history.navigate('admin/times/flu', { trigger: true });
+    expect($('#regiao-principal input[name="name"]').val()).to.equal('Fluminense');
+    expect($('#regiao-principal input[name="short"]').val()).to.equal('FLU');
+  });
+
 });
