@@ -11,7 +11,12 @@ module.exports = (function () {
       '<td class="team-city">' + escapeHtml(data.city) + '</td>' +
       '<td class="team-stadium">' + escapeHtml(data.stadium) + '</td>' +
       '<td class="team-actions">' +
-        '<a class="btn btn-default btn-xs" href="' + editHref + '">Editar</a>' +
+        '<a class="btn btn-default btn-xs team-action-edit" href="' + editHref + '">' +
+          'Editar' +
+        '</a> ' +
+        '<button type="button" class="btn btn-danger btn-xs team-action-delete">' +
+          'Excluir' +
+        '</button>' +
       '</td>';
   };
 }());
