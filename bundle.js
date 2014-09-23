@@ -17294,7 +17294,12 @@ module.exports = (function () {
       '<td class="team-city">' + escapeHtml(data.city) + '</td>' +
       '<td class="team-stadium">' + escapeHtml(data.stadium) + '</td>' +
       '<td class="team-actions">' +
-        '<a class="btn btn-default btn-xs" href="' + editHref + '">Editar</a>' +
+        '<a class="btn btn-default btn-xs team-action-edit" href="' + editHref + '">' +
+          'Editar' +
+        '</a> ' +
+        '<button type="button" class="btn btn-danger btn-xs team-action-delete">' +
+          'Excluir' +
+        '</button>' +
       '</td>';
   };
 }());
@@ -17310,7 +17315,20 @@ module.exports = (function () {
 
     tagName: 'tr',
     className: 'team-row',
-    template: template
+    template: template,
+
+    events: {
+      'click .team-action-delete': 'onDelete'
+    },
+
+    onDelete: function (e) {
+      if (e && e.preventDefault) { e.preventDefault(); }
+      var name = this.model.get('name') || 'este time';
+      if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        if (!window.confirm('Excluir ' + name + '?')) { return; }
+      }
+      this.model.destroy();
+    }
 
   });
 }());
