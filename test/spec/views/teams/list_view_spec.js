@@ -15,7 +15,8 @@ describe('views/teams/ListView', function () {
     var view = new TeamsListView({ collection: coll });
     view.render();
     expect(view.el.tagName.toLowerCase()).to.equal('table');
-    expect(view.$('thead th')).to.have.length(4);
+    expect(view.$('thead th')).to.have.length(5);
+    expect(view.$('tfoot a[href="#/admin/times/novo"]')).to.have.length(1);
     expect(view.$('tbody tr.team-row')).to.have.length(2);
   });
 

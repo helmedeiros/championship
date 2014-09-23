@@ -10,6 +10,7 @@ describe('views/teams/RowView', function () {
   it('renderiza uma linha de tabela para um time', function () {
     var view = new TeamRowView({
       model: new Team({
+        id: 'san',
         name: 'Santos',
         short: 'SAN',
         city: 'Santos',
@@ -22,6 +23,7 @@ describe('views/teams/RowView', function () {
     expect(view.$('.team-short').text()).to.equal('SAN');
     expect(view.$('.team-city').text()).to.equal('Santos');
     expect(view.$('.team-stadium').text()).to.equal('Vila Belmiro');
+    expect(view.$('.team-actions a').attr('href')).to.equal('#/admin/times/san');
   });
 
   it('escapa caracteres estruturais de HTML para evitar XSS', function () {
