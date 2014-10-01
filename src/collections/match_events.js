@@ -1,10 +1,10 @@
 module.exports = (function () {
   'use strict';
 
-  var Backbone = require('backbone');
+  var BaseCollection = require('../persistence/base_collection');
   var MatchEvent = require('../models/match_event');
 
-  return Backbone.Collection.extend({
+  return BaseCollection.extend({
 
     model: MatchEvent,
 

@@ -1,10 +1,10 @@
 module.exports = (function () {
   'use strict';
 
-  var Backbone = require('backbone');
+  var BaseCollection = require('../persistence/base_collection');
   var Player = require('../models/player');
 
-  return Backbone.Collection.extend({
+  return BaseCollection.extend({
 
     model: Player,
 
