@@ -27,6 +27,7 @@
   var Teams = require('./collections/teams');
   var TeamsListView = require('./views/teams/list_view');
   var TeamFormView = require('./views/teams/form_view');
+  var FlashView = require('./views/widgets/flash_view');
   var BaseModel = require('./persistence/base_model');
   var LocalStorageAdapter = require('./persistence/local_storage_adapter');
 
@@ -84,9 +85,19 @@
       app.getRegion('mainRegion').show(new TeamsListView({ collection: teams }));
     };
 
+    function flash(message, type) {
+      var region = app.getRegion('flashRegion');
+      if (!region) { return; }
+      region.show(new FlashView({ message: message, type: type || 'info' }));
+    }
+
     controller['admin.teamNew'] = function () {
       var form = new TeamFormView({ model: new Team() });
-      form.on('form:saved form:cancel', function () {
+      form.on('form:saved', function () {
+        flash('Time salvo com sucesso.', 'success');
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      form.on('form:cancel', function () {
         BackboneDep.history.navigate('times', { trigger: true });
       });
       app.getRegion('mainRegion').show(form);
@@ -96,7 +107,11 @@
       var team = new Team({ id: id });
       team.fetch();
       var form = new TeamFormView({ model: team });
-      form.on('form:saved form:cancel', function () {
+      form.on('form:saved', function () {
+        flash('Time atualizado.', 'success');
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      form.on('form:cancel', function () {
         BackboneDep.history.navigate('times', { trigger: true });
       });
       app.getRegion('mainRegion').show(form);
