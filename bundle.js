@@ -16743,6 +16743,7 @@ module.exports = (function () {
   var Teams = require('./collections/teams');
   var TeamsListView = require('./views/teams/list_view');
   var TeamFormView = require('./views/teams/form_view');
+  var FlashView = require('./views/widgets/flash_view');
   var BaseModel = require('./persistence/base_model');
   var LocalStorageAdapter = require('./persistence/local_storage_adapter');
 
@@ -16800,9 +16801,19 @@ module.exports = (function () {
       app.getRegion('mainRegion').show(new TeamsListView({ collection: teams }));
     };
 
+    function flash(message, type) {
+      var region = app.getRegion('flashRegion');
+      if (!region) { return; }
+      region.show(new FlashView({ message: message, type: type || 'info' }));
+    }
+
     controller['admin.teamNew'] = function () {
       var form = new TeamFormView({ model: new Team() });
-      form.on('form:saved form:cancel', function () {
+      form.on('form:saved', function () {
+        flash('Time salvo com sucesso.', 'success');
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      form.on('form:cancel', function () {
         BackboneDep.history.navigate('times', { trigger: true });
       });
       app.getRegion('mainRegion').show(form);
@@ -16812,7 +16823,11 @@ module.exports = (function () {
       var team = new Team({ id: id });
       team.fetch();
       var form = new TeamFormView({ model: team });
-      form.on('form:saved form:cancel', function () {
+      form.on('form:saved', function () {
+        flash('Time atualizado.', 'success');
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      form.on('form:cancel', function () {
         BackboneDep.history.navigate('times', { trigger: true });
       });
       app.getRegion('mainRegion').show(form);
@@ -16858,7 +16873,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/router":10,"./app/runtime":11,"./collections/teams":12,"./models/team":15,"./persistence/base_model":17,"./persistence/local_storage_adapter":18,"./views/teams/form_view":22,"./views/teams/list_view":24,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],14:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/router":10,"./app/runtime":11,"./collections/teams":12,"./models/team":15,"./persistence/base_model":17,"./persistence/local_storage_adapter":18,"./views/teams/form_view":22,"./views/teams/list_view":24,"./views/widgets/flash_view":27,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],14:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17333,4 +17348,67 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":25,"backbone.marionette":2}]},{},[13]);
+},{"./row_template":25,"backbone.marionette":2}],27:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var escapeHtml = require('../helpers/escape_html');
+
+  var TYPE_TO_CLASS = {
+    success: 'alert-success',
+    info:    'alert-info',
+    warning: 'alert-warning',
+    error:   'alert-danger',
+    danger:  'alert-danger'
+  };
+
+  return Marionette.ItemView.extend({
+
+    className: 'flash-banner',
+
+    template: function (data) {
+      var cls = TYPE_TO_CLASS[data.type] || 'alert-info';
+      return '<div class="alert ' + cls + '" role="alert">' +
+        '<button type="button" class="close flash-dismiss" aria-label="fechar">' +
+          '&times;' +
+        '</button>' +
+        escapeHtml(data.message) +
+      '</div>';
+    },
+
+    events: {
+      'click .flash-dismiss': 'dismiss'
+    },
+
+    initialize: function (options) {
+      var opts = options || {};
+      this.message = opts.message || '';
+      this.type = opts.type || 'info';
+      this.timeoutMs = opts.timeoutMs === undefined ? 3000 : opts.timeoutMs;
+    },
+
+    serializeData: function () {
+      return { message: this.message, type: this.type };
+    },
+
+    onShow: function () {
+      if (this.timeoutMs > 0) {
+        var view = this;
+        this._timer = setTimeout(function () { view.dismiss(); }, this.timeoutMs);
+      }
+    },
+
+    dismiss: function () {
+      if (this._timer) {
+        clearTimeout(this._timer);
+        this._timer = null;
+      }
+      this.trigger('flash:dismissed');
+      if (this.$el) { this.$el.remove(); }
+    }
+
+  });
+}());
+
+},{"../helpers/escape_html":19,"backbone.marionette":2}]},{},[13]);
