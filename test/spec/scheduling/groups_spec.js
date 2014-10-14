@@ -43,4 +43,16 @@ describe('scheduling/groups', function () {
     expect(groups.letterFor(25)).to.equal('Z');
   });
 
+  it('generate inclui rodadas round-robin internas em cada grupo', function () {
+    var g = groups.generate(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], 2);
+    expect(g).to.have.length(2);
+    g.forEach(function (grp) {
+      // 4 participants → 3 rounds, 2 matches per round
+      expect(grp.rounds).to.have.length(3);
+      grp.rounds.forEach(function (round) {
+        expect(round).to.have.length(2);
+      });
+    });
+  });
+
 });

@@ -50,8 +50,23 @@ module.exports = (function () {
     return groups;
   }
 
+  var roundRobin = require('./round_robin');
+
+  function generate(participants, groupCount) {
+    var groupsList = distribute(participants, groupCount);
+    return groupsList.map(function (group) {
+      var schedule = roundRobin.generate(group.participants, { balanceHome: true });
+      return {
+        name: group.name,
+        participants: group.participants,
+        rounds: schedule.rounds
+      };
+    });
+  }
+
   return {
     distribute: distribute,
+    generate: generate,
     letterFor: letterFor
   };
 }());
