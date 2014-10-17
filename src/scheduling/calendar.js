@@ -20,17 +20,30 @@ module.exports = (function () {
     return copy;
   }
 
-  function assign(rounds, startDate, daysBetween) {
+  function matchKey(roundIdx, matchIdx) {
+    return roundIdx + ':' + matchIdx;
+  }
+
+  function applyOverride(target, override) {
+    if (!override) { return target; }
+    if (override.kickoff) { target.kickoff = override.kickoff; }
+    if (override.stadium) { target.stadium = override.stadium; }
+    if (override.referee) { target.referee = override.referee; }
+    return target;
+  }
+
+  function assign(rounds, startDate, daysBetween, overrides) {
     if (!rounds || rounds.length === 0) { return []; }
     var start = startDate instanceof Date ? startDate : new Date(startDate);
     var step = daysBetween || 7;
-    return rounds.map(function (round, idx) {
-      var roundDate = addDays(start, idx * step);
+    var byKey = overrides || {};
+    return rounds.map(function (round, rIdx) {
+      var roundDate = addDays(start, rIdx * step);
       var iso = toIso(roundDate);
-      return round.map(function (match) {
+      return round.map(function (match, mIdx) {
         var withDate = { home: match.home, away: match.away, kickoff: iso };
         if (match.stadium) { withDate.stadium = match.stadium; }
-        return withDate;
+        return applyOverride(withDate, byKey[matchKey(rIdx, mIdx)]);
       });
     });
   }
@@ -38,6 +51,7 @@ module.exports = (function () {
   return {
     assign: assign,
     toIso: toIso,
-    addDays: addDays
+    addDays: addDays,
+    matchKey: matchKey
   };
 }());
