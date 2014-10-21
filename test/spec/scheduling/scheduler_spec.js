@@ -45,4 +45,26 @@ describe('scheduling/scheduler', function () {
     expect(function () { scheduler.scheduleFor('xyz', ['a', 'b']); }).to.throw(/desconhecido/);
   });
 
+  it('aplica calendário quando startDate é informado', function () {
+    var s = scheduler.scheduleFor('league', ['a', 'b', 'c', 'd'], {
+      startDate: '2014-04-19T16:00:00Z',
+      daysBetween: 7
+    });
+    expect(s.rounds[0][0].kickoff).to.equal('2014-04-19T16:00:00Z');
+    expect(s.rounds[1][0].kickoff).to.equal('2014-04-26T16:00:00Z');
+  });
+
+  it('aplica calendário também a partidas internas de grupos', function () {
+    var teams = [];
+    var i;
+    for (i = 1; i <= 8; i = i + 1) { teams.push('t' + i); }
+    var s = scheduler.scheduleFor('groups-knockout', teams, {
+      groupCount: 2,
+      startDate: '2014-06-12T17:00:00Z',
+      daysBetween: 5
+    });
+    expect(s.groups[0].rounds[0][0].kickoff).to.equal('2014-06-12T17:00:00Z');
+    expect(s.groups[0].rounds[1][0].kickoff).to.equal('2014-06-17T17:00:00Z');
+  });
+
 });

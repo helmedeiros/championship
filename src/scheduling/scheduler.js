@@ -5,6 +5,7 @@ module.exports = (function () {
   var doubleRR = require('./double_round_robin');
   var groups = require('./groups');
   var knockout = require('./knockout');
+  var calendar = require('./calendar');
 
   var FORMATS = {
     'league': function (teams) {
@@ -31,12 +32,31 @@ module.exports = (function () {
     }
   };
 
+  function withCalendar(result, options) {
+    if (!options || !options.startDate) { return result; }
+    var step = options.daysBetween || 7;
+    var overrides = options.overrides;
+    if (result.rounds) {
+      result.rounds = calendar.assign(result.rounds, options.startDate, step, overrides);
+    }
+    if (result.groups) {
+      result.groups = result.groups.map(function (group) {
+        return {
+          name: group.name,
+          participants: group.participants,
+          rounds: calendar.assign(group.rounds, options.startDate, step, overrides)
+        };
+      });
+    }
+    return result;
+  }
+
   function scheduleFor(format, teams, options) {
     var fn = FORMATS[format];
     if (!fn) {
       throw new Error('formato desconhecido: ' + format);
     }
-    return fn(teams, options);
+    return withCalendar(fn(teams, options), options);
   }
 
   return {
