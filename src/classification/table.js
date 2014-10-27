@@ -38,6 +38,11 @@ module.exports = (function () {
     }
   }
 
+  function percentage(row) {
+    if (row.played === 0) { return 0; }
+    return Math.round((row.points / (row.played * 3)) * 100);
+  }
+
   function tally(matches) {
     var rows = {};
     var finished = (matches || []).filter(function (m) {
@@ -51,7 +56,11 @@ module.exports = (function () {
       applyResult(rows[m.away], m.awayScore, m.homeScore);
     });
 
-    return Object.keys(rows).map(function (k) { return rows[k]; });
+    return Object.keys(rows).map(function (k) {
+      var row = rows[k];
+      row.percentage = percentage(row);
+      return row;
+    });
   }
 
   function compareRows(order, ctx) {

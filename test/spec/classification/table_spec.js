@@ -67,4 +67,31 @@ describe('classification/table', function () {
     expect(rowA.recentResults).to.deep.equal(['W', 'D', 'W']);
   });
 
+  it('calcula aproveitamento percentage (pontos / max)', function () {
+    var rows = table.tally([
+      finished('a', 2, 'b', 0),  // a: 3 pts em 1 jogo → 100%
+      finished('a', 0, 'c', 0),  // a: 4 pts em 2 jogos → 67%
+      finished('b', 0, 'c', 0)   // b: 1pt em 2j → 17%, c: 2pts em 2j → 33%
+    ]);
+    var by = {};
+    rows.forEach(function (r) { by[r.team] = r; });
+    expect(by.a.percentage).to.equal(67);
+    expect(by.b.percentage).to.equal(17);
+    expect(by.c.percentage).to.equal(33);
+  });
+
+  it('respeita order customizada nos critérios de desempate', function () {
+    var matches = [
+      finished('a', 1, 'b', 0),   // a:3 pts, +1 sg
+      finished('b', 2, 'c', 0),   // b:3 pts, +1 sg após
+      finished('c', 0, 'a', 0)    // a:4 pts, b:3 pts, c:1 pt
+    ];
+    // a já está em primeiro por pts. Com order=['goal_diff'] primeiro:
+    // a sg=+1, b sg=+1, c sg=-2 → empate a/b → desempata por b ordem alfabética
+    var custom = table.classify(matches, { order: ['goal_diff'] });
+    expect(custom[0].team).to.equal('a');  // alfabético tiebreak
+    expect(custom[1].team).to.equal('b');
+    expect(custom[2].team).to.equal('c');
+  });
+
 });
