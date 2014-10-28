@@ -3,6 +3,9 @@ module.exports = (function () {
 
   var BaseModel = require('../persistence/base_model');
   var messages = require('./messages/championship');
+  var scheduler = require('../scheduling/scheduler');
+  var Matches = require('../collections/matches');
+  var table = require('../classification/table');
 
   var FORMATS = ['league', 'double-round-robin', 'groups-knockout', 'knockout'];
 
@@ -38,6 +41,53 @@ module.exports = (function () {
       if (!isKnownFormat(attrs.format)) {
         return messages.FORMAT_UNKNOWN;
       }
+    },
+
+    createFixtures: function (teamIds, options) {
+      var opts = options || {};
+      var storage = BaseModel.getStorage();
+      if (!storage) { throw new Error('storage não configurado'); }
+      var schedule = scheduler.scheduleFor(this.get('format'), teamIds, opts);
+      var champId = this.id || this.cid;
+      var saved = [];
+      var pushRound = function (matches) {
+        matches.forEach(function (m) {
+          saved.push(storage.create('matches', {
+            home: m.home, away: m.away,
+            kickoff: m.kickoff || null,
+            stadium: m.stadium || '',
+            championship: champId,
+            status: 'scheduled',
+            homeScore: 0, awayScore: 0
+          }));
+        });
+      };
+      if (schedule.rounds) {
+        schedule.rounds.forEach(pushRound);
+      }
+      if (schedule.groups) {
+        schedule.groups.forEach(function (group) {
+          group.rounds.forEach(pushRound);
+        });
+      }
+      if (schedule.bracket) {
+        schedule.bracket.rounds.forEach(function (round) {
+          pushRound(round.matches);
+        });
+      }
+      return saved;
+    },
+
+    matches: function () {
+      var coll = new Matches();
+      coll.fetch();
+      var champId = this.id || this.cid;
+      return coll.filter(function (m) { return m.get('championship') === champId; });
+    },
+
+    classification: function () {
+      var raw = this.matches().map(function (m) { return m.toJSON(); });
+      return table.classify(raw, { order: this.get('tiebreakers') });
     }
 
   });
