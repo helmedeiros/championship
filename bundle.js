@@ -16703,6 +16703,191 @@ module.exports = (function () {
 module.exports = (function () {
   'use strict';
 
+  var tiebreakers = require('./tiebreakers');
+
+  function freshRow(teamId) {
+    return {
+      team: teamId,
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      points: 0,
+      recentResults: []
+    };
+  }
+
+  function applyResult(row, gf, ga) {
+    row.played = row.played + 1;
+    row.goalsFor = row.goalsFor + gf;
+    row.goalsAgainst = row.goalsAgainst + ga;
+    if (gf > ga) {
+      row.wins = row.wins + 1;
+      row.points = row.points + 3;
+      row.recentResults.push('W');
+    } else if (gf === ga) {
+      row.draws = row.draws + 1;
+      row.points = row.points + 1;
+      row.recentResults.push('D');
+    } else {
+      row.losses = row.losses + 1;
+      row.recentResults.push('L');
+    }
+    if (row.recentResults.length > 5) {
+      row.recentResults.shift();
+    }
+  }
+
+  function percentage(row) {
+    if (row.played === 0) { return 0; }
+    return Math.round((row.points / (row.played * 3)) * 100);
+  }
+
+  function tally(matches) {
+    var rows = {};
+    var finished = (matches || []).filter(function (m) {
+      return m.status === 'finished';
+    });
+
+    finished.forEach(function (m) {
+      if (!rows[m.home]) { rows[m.home] = freshRow(m.home); }
+      if (!rows[m.away]) { rows[m.away] = freshRow(m.away); }
+      applyResult(rows[m.home], m.homeScore, m.awayScore);
+      applyResult(rows[m.away], m.awayScore, m.homeScore);
+    });
+
+    return Object.keys(rows).map(function (k) {
+      var row = rows[k];
+      row.percentage = percentage(row);
+      return row;
+    });
+  }
+
+  function compareRows(order, ctx) {
+    return function (a, b) {
+      var i;
+      for (i = 0; i < order.length; i = i + 1) {
+        var rule = tiebreakers.ruleFor(order[i]);
+        if (!rule) { continue; }
+        var diff = rule(b, ctx) - rule(a, ctx);
+        if (diff !== 0) { return diff; }
+      }
+      var an = a.team || '';
+      var bn = b.team || '';
+      if (an < bn) { return -1; }
+      if (an > bn) { return 1; }
+      return 0;
+    };
+  }
+
+  function classify(matches, options) {
+    var opts = options || {};
+    var order = opts.order || tiebreakers.DEFAULT_ORDER;
+    return tally(matches).sort(compareRows(order, opts));
+  }
+
+  return {
+    tally: tally,
+    classify: classify
+  };
+}());
+
+},{"./tiebreakers":13}],13:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // Critérios de desempate retornam números: maior valor = melhor posição.
+  // Quando dois times têm o mesmo valor, passa-se ao próximo critério.
+
+  var RULES = {
+    points:      function (row) { return row.points; },
+    wins:        function (row) { return row.wins; },
+    goal_diff:   function (row) { return row.goalsFor - row.goalsAgainst; },
+    goals_for:   function (row) { return row.goalsFor; },
+    head_to_head: function (row, context) {
+      var h2h = context && context.h2h && context.h2h[row.team];
+      return h2h ? h2h.points : 0;
+    }
+  };
+
+  var DEFAULT_ORDER = [
+    'points', 'wins', 'goal_diff', 'goals_for', 'head_to_head'
+  ];
+
+  function ruleFor(name) {
+    return RULES[name];
+  }
+
+  return {
+    RULES: RULES,
+    DEFAULT_ORDER: DEFAULT_ORDER,
+    ruleFor: ruleFor
+  };
+}());
+
+},{}],14:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var BaseCollection = require('../persistence/base_collection');
+  var Championship = require('../models/championship');
+
+  return BaseCollection.extend({
+
+    model: Championship,
+
+    comparator: function (a, b) {
+      var sa = a.get('season') || 0;
+      var sb = b.get('season') || 0;
+      if (sa !== sb) {
+        return sb - sa;
+      }
+      var na = a.get('name') || '';
+      var nb = b.get('name') || '';
+      if (na < nb) { return -1; }
+      if (na > nb) { return 1; }
+      return 0;
+    }
+
+  });
+}());
+
+},{"../models/championship":18,"../persistence/base_collection":24}],15:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var BaseCollection = require('../persistence/base_collection');
+  var Match = require('../models/match');
+
+  return BaseCollection.extend({
+
+    model: Match,
+
+    comparator: function (match) {
+      var kickoff = match.get('kickoff');
+      if (!kickoff) {
+        return Infinity;
+      }
+      return new Date(kickoff).getTime();
+    },
+
+    finished: function () {
+      return this.filter(function (m) { return m.isFinished(); });
+    },
+
+    live: function () {
+      return this.filter(function (m) { return m.isLive(); });
+    }
+
+  });
+}());
+
+},{"../models/match":19,"../persistence/base_collection":24}],16:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
   var BaseCollection = require('../persistence/base_collection');
   var Team = require('../models/team');
 
@@ -16712,7 +16897,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/team":15,"../persistence/base_collection":16}],13:[function(require,module,exports){
+},{"../models/team":23,"../persistence/base_collection":24}],17:[function(require,module,exports){
 (function (process){
 /* global process */
 (function () {
@@ -16741,8 +16926,13 @@ module.exports = (function () {
   var Controller = require('./app/controller');
   var Team = require('./models/team');
   var Teams = require('./collections/teams');
+  var Championship = require('./models/championship');
+  var Championships = require('./collections/championships');
   var TeamsListView = require('./views/teams/list_view');
   var TeamFormView = require('./views/teams/form_view');
+  var ChampionshipsListView = require('./views/championships/list_view');
+  var ChampionshipShowView = require('./views/championships/show_view');
+  var ChampionshipFormView = require('./views/championships/form_view');
   var FlashView = require('./views/widgets/flash_view');
   var BaseModel = require('./persistence/base_model');
   var LocalStorageAdapter = require('./persistence/local_storage_adapter');
@@ -16764,6 +16954,41 @@ module.exports = (function () {
     SEED_TEAMS.forEach(function (attrs) { storage.create('teams', attrs); });
   }
 
+  function seedChampionship() {
+    var storage = BaseModel.getStorage();
+    if (!storage || storage.list('championships').length > 0) { return; }
+    seedTeams();
+    storage.create('championships', {
+      id: 'brasileirao-demo-2014',
+      name: 'Brasileirão Demo 2014',
+      season: 2014,
+      country: 'BR',
+      format: 'double-round-robin',
+      tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
+    });
+    var champ = new Championship({ id: 'brasileirao-demo-2014' });
+    champ.fetch();
+    champ.createFixtures(['sao', 'cor', 'san', 'pal'], {
+      startDate: '2014-04-19T16:00:00Z',
+      daysBetween: 7
+    });
+    // Pré-marca algumas partidas como finalizadas para popular a classificação.
+    var saved = storage.list('matches').slice(0, 4);
+    var sample = [
+      { homeScore: 2, awayScore: 1 },
+      { homeScore: 0, awayScore: 0 },
+      { homeScore: 3, awayScore: 2 },
+      { homeScore: 1, awayScore: 1 }
+    ];
+    saved.forEach(function (m, idx) {
+      var s = sample[idx % sample.length];
+      m.status = 'finished';
+      m.homeScore = s.homeScore;
+      m.awayScore = s.awayScore;
+      storage.update('matches', m);
+    });
+  }
+
   function bindRouter(BackboneRef, controller) {
     var Router = BackboneRef.Router.extend({ routes: routerConfig.routes });
     var router = new Router();
@@ -16775,6 +17000,81 @@ module.exports = (function () {
       }
     });
     return router;
+  }
+
+  function wireTeamRoutes(app, controller, BackboneDep, flash) {
+    controller.teamsList = function () {
+      seedTeams();
+      var teams = new Teams();
+      teams.fetch();
+      app.getRegion('mainRegion').show(new TeamsListView({ collection: teams }));
+    };
+    controller['admin.teamNew'] = function () {
+      var form = new TeamFormView({ model: new Team() });
+      form.on('form:saved', function () {
+        flash('Time salvo com sucesso.', 'success');
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      form.on('form:cancel', function () {
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      app.getRegion('mainRegion').show(form);
+    };
+    controller['admin.teamEdit'] = function (id) {
+      var team = new Team({ id: id });
+      team.fetch();
+      var form = new TeamFormView({ model: team });
+      form.on('form:saved', function () {
+        flash('Time atualizado.', 'success');
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      form.on('form:cancel', function () {
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      app.getRegion('mainRegion').show(form);
+    };
+  }
+
+  function wireChampionshipRoutes(app, controller, BackboneDep, flash) {
+    controller.championshipsList = function () {
+      seedChampionship();
+      var coll = new Championships();
+      coll.fetch();
+      app.getRegion('mainRegion').show(new ChampionshipsListView({ collection: coll }));
+    };
+    controller.championshipsShow = function (id) {
+      var champ = new Championship({ id: id });
+      champ.fetch();
+      app.getRegion('mainRegion').show(new ChampionshipShowView({ model: champ }));
+    };
+    controller['admin.championshipNew'] = function () {
+      var teams = new Teams();
+      teams.fetch();
+      var form = new ChampionshipFormView({
+        model: new Championship(),
+        availableTeams: teams.models
+      });
+      form.on('form:saved', function (champ, extras) {
+        if (extras && extras.teamIds && extras.teamIds.length > 0) {
+          try {
+            champ.createFixtures(extras.teamIds, {
+              startDate: extras.startDate || '2014-04-19T16:00:00Z',
+              daysBetween: 7
+            });
+            flash('Campeonato criado com calendário gerado.', 'success');
+          } catch (err) {
+            flash('Campeonato salvo, mas o calendário falhou: ' + err.message, 'warning');
+          }
+        } else {
+          flash('Campeonato salvo (sem calendário gerado).', 'info');
+        }
+        BackboneDep.history.navigate('campeonatos/' + champ.id, { trigger: true });
+      });
+      form.on('form:cancel', function () {
+        BackboneDep.history.navigate('campeonatos', { trigger: true });
+      });
+      app.getRegion('mainRegion').show(form);
+    };
   }
 
   function createApp(deps) {
@@ -16794,44 +17094,14 @@ module.exports = (function () {
 
     var controller = new Controller({ app: app, Marionette: MarionetteDep });
 
-    controller.teamsList = function () {
-      seedTeams();
-      var teams = new Teams();
-      teams.fetch();
-      app.getRegion('mainRegion').show(new TeamsListView({ collection: teams }));
-    };
-
     function flash(message, type) {
       var region = app.getRegion('flashRegion');
       if (!region) { return; }
       region.show(new FlashView({ message: message, type: type || 'info' }));
     }
 
-    controller['admin.teamNew'] = function () {
-      var form = new TeamFormView({ model: new Team() });
-      form.on('form:saved', function () {
-        flash('Time salvo com sucesso.', 'success');
-        BackboneDep.history.navigate('times', { trigger: true });
-      });
-      form.on('form:cancel', function () {
-        BackboneDep.history.navigate('times', { trigger: true });
-      });
-      app.getRegion('mainRegion').show(form);
-    };
-
-    controller['admin.teamEdit'] = function (id) {
-      var team = new Team({ id: id });
-      team.fetch();
-      var form = new TeamFormView({ model: team });
-      form.on('form:saved', function () {
-        flash('Time atualizado.', 'success');
-        BackboneDep.history.navigate('times', { trigger: true });
-      });
-      form.on('form:cancel', function () {
-        BackboneDep.history.navigate('times', { trigger: true });
-      });
-      app.getRegion('mainRegion').show(form);
-    };
+    wireTeamRoutes(app, controller, BackboneDep, flash);
+    wireChampionshipRoutes(app, controller, BackboneDep, flash);
 
     app.addInitializer(function () {
       BaseModel.setStorage(storageFactory());
@@ -16873,7 +17143,183 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/router":10,"./app/runtime":11,"./collections/teams":12,"./models/team":15,"./persistence/base_model":17,"./persistence/local_storage_adapter":18,"./views/teams/form_view":22,"./views/teams/list_view":24,"./views/widgets/flash_view":27,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],14:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/router":10,"./app/runtime":11,"./collections/championships":14,"./collections/teams":16,"./models/championship":18,"./models/team":23,"./persistence/base_model":25,"./persistence/local_storage_adapter":26,"./views/championships/form_view":35,"./views/championships/list_view":36,"./views/championships/show_view":38,"./views/teams/form_view":43,"./views/teams/list_view":45,"./views/widgets/flash_view":48,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],18:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var BaseModel = require('../persistence/base_model');
+  var messages = require('./messages/championship');
+  var scheduler = require('../scheduling/scheduler');
+  var Matches = require('../collections/matches');
+  var table = require('../classification/table');
+
+  var FORMATS = ['league', 'double-round-robin', 'groups-knockout', 'knockout'];
+
+  function isKnownFormat(value) {
+    var i;
+    for (i = 0; i < FORMATS.length; i = i + 1) {
+      if (FORMATS[i] === value) { return true; }
+    }
+    return false;
+  }
+
+  return BaseModel.extend({
+
+    bucket: 'championships',
+
+    FORMATS: FORMATS,
+
+    defaults: {
+      name: '',
+      season: null,
+      country: '',
+      format: 'league',
+      tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
+    },
+
+    validate: function (attrs) {
+      if (!attrs.name) {
+        return messages.NAME_REQUIRED;
+      }
+      if (!attrs.season) {
+        return messages.SEASON_REQUIRED;
+      }
+      if (!isKnownFormat(attrs.format)) {
+        return messages.FORMAT_UNKNOWN;
+      }
+    },
+
+    createFixtures: function (teamIds, options) {
+      var opts = options || {};
+      var storage = BaseModel.getStorage();
+      if (!storage) { throw new Error('storage não configurado'); }
+      var schedule = scheduler.scheduleFor(this.get('format'), teamIds, opts);
+      var champId = this.id || this.cid;
+      var saved = [];
+      var pushRound = function (matches) {
+        matches.forEach(function (m) {
+          saved.push(storage.create('matches', {
+            home: m.home, away: m.away,
+            kickoff: m.kickoff || null,
+            stadium: m.stadium || '',
+            championship: champId,
+            status: 'scheduled',
+            homeScore: 0, awayScore: 0
+          }));
+        });
+      };
+      if (schedule.rounds) {
+        schedule.rounds.forEach(pushRound);
+      }
+      if (schedule.groups) {
+        schedule.groups.forEach(function (group) {
+          group.rounds.forEach(pushRound);
+        });
+      }
+      if (schedule.bracket) {
+        schedule.bracket.rounds.forEach(function (round) {
+          pushRound(round.matches);
+        });
+      }
+      return saved;
+    },
+
+    matches: function () {
+      var coll = new Matches();
+      coll.fetch();
+      var champId = this.id || this.cid;
+      return coll.filter(function (m) { return m.get('championship') === champId; });
+    },
+
+    classification: function () {
+      var raw = this.matches().map(function (m) { return m.toJSON(); });
+      return table.classify(raw, { order: this.get('tiebreakers') });
+    }
+
+  });
+}());
+
+},{"../classification/table":12,"../collections/matches":15,"../persistence/base_model":25,"../scheduling/scheduler":32,"./messages/championship":20}],19:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var BaseModel = require('../persistence/base_model');
+  var messages = require('./messages/match');
+
+  var STATUSES = ['scheduled', 'live', 'half', 'finished', 'postponed'];
+
+  function isKnownStatus(value) {
+    var i;
+    for (i = 0; i < STATUSES.length; i = i + 1) {
+      if (STATUSES[i] === value) { return true; }
+    }
+    return false;
+  }
+
+  return BaseModel.extend({
+
+    bucket: 'matches',
+
+    STATUSES: STATUSES,
+
+    defaults: {
+      home: null,
+      away: null,
+      kickoff: null,
+      stadium: '',
+      referee: '',
+      status: 'scheduled',
+      homeScore: 0,
+      awayScore: 0
+    },
+
+    validate: function (attrs) {
+      if (!attrs.home || !attrs.away) {
+        return messages.TEAMS_REQUIRED;
+      }
+      if (attrs.home === attrs.away) {
+        return messages.TEAMS_SAME;
+      }
+      if (!isKnownStatus(attrs.status)) {
+        return messages.STATUS_UNKNOWN;
+      }
+    },
+
+    isLive: function () {
+      var s = this.get('status');
+      return s === 'live' || s === 'half';
+    },
+
+    isFinished: function () {
+      return this.get('status') === 'finished';
+    }
+
+  });
+}());
+
+},{"../persistence/base_model":25,"./messages/match":21}],20:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  return {
+    NAME_REQUIRED: 'O nome do campeonato é obrigatório',
+    SEASON_REQUIRED: 'A temporada do campeonato é obrigatória',
+    FORMAT_UNKNOWN: 'Formato de campeonato desconhecido'
+  };
+}());
+
+},{}],21:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  return {
+    TEAMS_REQUIRED: 'A partida precisa dos times mandante e visitante',
+    TEAMS_SAME: 'Mandante e visitante não podem ser o mesmo time',
+    STATUS_UNKNOWN: 'Status de partida desconhecido'
+  };
+}());
+
+},{}],22:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16882,7 +17328,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],15:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16911,7 +17357,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":17,"./messages/team":14}],16:[function(require,module,exports){
+},{"../persistence/base_model":25,"./messages/team":22}],24:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16951,7 +17397,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./base_model":17,"backbone":4}],17:[function(require,module,exports){
+},{"./base_model":25,"backbone":4}],25:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17020,7 +17466,7 @@ module.exports = (function () {
   return BaseModel;
 }());
 
-},{"backbone":4}],18:[function(require,module,exports){
+},{"backbone":4}],26:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17133,7 +17579,739 @@ module.exports = (function () {
   return LocalStorageAdapter;
 }());
 
-},{}],19:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // Distribui datas pelos jogos de cada rodada, partindo de startDate e
+  // separando rodadas por daysBetween dias.
+
+  function toIso(date) {
+    var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return date.getUTCFullYear() + '-' +
+      pad(date.getUTCMonth() + 1) + '-' +
+      pad(date.getUTCDate()) + 'T' +
+      pad(date.getUTCHours()) + ':' +
+      pad(date.getUTCMinutes()) + ':' +
+      pad(date.getUTCSeconds()) + 'Z';
+  }
+
+  function addDays(date, days) {
+    var copy = new Date(date.getTime());
+    copy.setUTCDate(copy.getUTCDate() + days);
+    return copy;
+  }
+
+  function matchKey(roundIdx, matchIdx) {
+    return roundIdx + ':' + matchIdx;
+  }
+
+  function applyOverride(target, override) {
+    if (!override) { return target; }
+    if (override.kickoff) { target.kickoff = override.kickoff; }
+    if (override.stadium) { target.stadium = override.stadium; }
+    if (override.referee) { target.referee = override.referee; }
+    return target;
+  }
+
+  function assign(rounds, startDate, daysBetween, overrides) {
+    if (!rounds || rounds.length === 0) { return []; }
+    var start = startDate instanceof Date ? startDate : new Date(startDate);
+    var step = daysBetween || 7;
+    var byKey = overrides || {};
+    return rounds.map(function (round, rIdx) {
+      var roundDate = addDays(start, rIdx * step);
+      var iso = toIso(roundDate);
+      return round.map(function (match, mIdx) {
+        var withDate = { home: match.home, away: match.away, kickoff: iso };
+        if (match.stadium) { withDate.stadium = match.stadium; }
+        return applyOverride(withDate, byKey[matchKey(rIdx, mIdx)]);
+      });
+    });
+  }
+
+  return {
+    assign: assign,
+    toIso: toIso,
+    addDays: addDays,
+    matchKey: matchKey
+  };
+}());
+
+},{}],28:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var roundRobin = require('./round_robin');
+
+  // Pontos corridos com turno e returno (e.g. Brasileirão).
+  // No returno os mandos são invertidos em relação ao turno.
+
+  function generate(participants) {
+    var first = roundRobin.generate(participants, { balanceHome: true });
+    var returnRounds = first.rounds.map(function (round) {
+      return round.map(function (m) { return { home: m.away, away: m.home }; });
+    });
+    return {
+      rounds: first.rounds.concat(returnRounds),
+      byeUsed: first.byeUsed,
+      legs: 2
+    };
+  }
+
+  return { generate: generate };
+}());
+
+},{"./round_robin":31}],29:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // Distribuição de participantes em grupos:
+  //   - groupCount grupos
+  //   - participants.length deve ser divisível por groupCount
+  //   - distribuição em zigzag (snake draft) para balancear pots:
+  //       grupo 1: participantes 1, 8, 9, 16, ...
+  //       grupo 2: participantes 2, 7, 10, 15, ...
+
+  function letterFor(idx) {
+    return String.fromCharCode(65 + idx); // 'A', 'B', ...
+  }
+
+  function distribute(participants, groupCount) {
+    if (!groupCount || groupCount < 1) {
+      throw new Error('groupCount precisa ser >= 1');
+    }
+    if (participants.length % groupCount !== 0) {
+      throw new Error(
+        'número de participantes (' + participants.length +
+        ') não divisível por groupCount (' + groupCount + ')'
+      );
+    }
+
+    var groups = [];
+    var i;
+    for (i = 0; i < groupCount; i = i + 1) {
+      groups.push({ name: 'Grupo ' + letterFor(i), participants: [] });
+    }
+
+    var direction = 1;
+    var idx = 0;
+    participants.forEach(function (p, n) {
+      groups[idx].participants.push(p);
+      // snake: move idx with direction; bounce at edges
+      if (direction === 1 && idx === groupCount - 1) {
+        direction = -1;
+      } else if (direction === -1 && idx === 0) {
+        direction = 1;
+      } else {
+        idx = idx + direction;
+      }
+      if (n === 0 && groupCount > 1) {
+        idx = 1;
+        direction = 1;
+      }
+    });
+
+    return groups;
+  }
+
+  var roundRobin = require('./round_robin');
+
+  function generate(participants, groupCount) {
+    var groupsList = distribute(participants, groupCount);
+    return groupsList.map(function (group) {
+      var schedule = roundRobin.generate(group.participants, { balanceHome: true });
+      return {
+        name: group.name,
+        participants: group.participants,
+        rounds: schedule.rounds
+      };
+    });
+  }
+
+  return {
+    distribute: distribute,
+    generate: generate,
+    letterFor: letterFor
+  };
+}());
+
+},{"./round_robin":31}],30:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // Single-elimination bracket. Power-of-two participant count for now;
+  // odd counts can pad with byes in a later commit.
+
+  function isPowerOfTwo(n) {
+    return n > 0 && (n & (n - 1)) === 0;
+  }
+
+  function labelForRound(remaining, totalRounds, roundIdx) {
+    if (remaining === 2) { return 'Final'; }
+    if (remaining === 4) { return 'Semifinal'; }
+    if (remaining === 8) { return 'Quartas de final'; }
+    if (remaining === 16) { return 'Oitavas de final'; }
+    if (remaining === 32) { return 'Décima sextas de final'; }
+    return 'Rodada ' + (roundIdx + 1) + ' de ' + totalRounds;
+  }
+
+  function buildPlaceholders(roundIdx, count) {
+    var out = [];
+    var i;
+    for (i = 0; i < count; i = i + 1) {
+      out.push({ placeholder: 'W' + (roundIdx + 1) + '.' + (i + 1) });
+    }
+    return out;
+  }
+
+  function buildMatches(current) {
+    var matches = [];
+    var i;
+    for (i = 0; i < current.length / 2; i = i + 1) {
+      matches.push({ home: current[i], away: current[current.length - 1 - i] });
+    }
+    return matches;
+  }
+
+  function generate(participants) {
+    var n = participants ? participants.length : 0;
+    if (!isPowerOfTwo(n)) {
+      throw new Error('mata-mata exige número de participantes potência de 2 (recebeu ' + n + ')');
+    }
+
+    var rounds = [];
+    var current = participants.slice();
+    var totalRounds = Math.log(n) / Math.log(2);
+    var roundIdx = 0;
+
+    while (current.length > 1) {
+      var label = labelForRound(current.length, totalRounds, roundIdx);
+      var matches = buildMatches(current);
+      rounds.push({ label: label, matches: matches });
+      current = buildPlaceholders(roundIdx, matches.length);
+      roundIdx = roundIdx + 1;
+    }
+
+    return { rounds: rounds, totalRounds: totalRounds };
+  }
+
+  return { generate: generate };
+}());
+
+},{}],31:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // Classic "circle method" round-robin generator. For n participants:
+  //   - if n is odd, insert a BYE so every round has n/2 matches and one
+  //     participant rests
+  //   - produces n-1 rounds (with bye, n rounds)
+  //   - fixes participant at index 0, rotates the rest
+  //
+  // Options:
+  //   balanceHome: alternate home/away across rounds so each participant
+  //                plays roughly half as home and half as away.
+
+  function rotate(arr) {
+    if (arr.length < 2) { return arr.slice(); }
+    var rotated = arr.slice();
+    rotated.splice(1, 0, rotated.pop());
+    return rotated;
+  }
+
+  function swap(match) {
+    return { home: match.away, away: match.home };
+  }
+
+  function balance(rounds) {
+    return rounds.map(function (round, idx) {
+      if (idx % 2 === 0) { return round; }
+      return round.map(swap);
+    });
+  }
+
+  function pairRound(pool) {
+    var matches = [];
+    var size = pool.length;
+    var m;
+    var home;
+    var away;
+    for (m = 0; m < size / 2; m = m + 1) {
+      home = pool[m];
+      away = pool[size - 1 - m];
+      if (home !== null && away !== null) {
+        matches.push({ home: home, away: away });
+      }
+    }
+    return matches;
+  }
+
+  function withBye(participants) {
+    var pool = participants.slice();
+    var byeInserted = false;
+    if (pool.length % 2 === 1) {
+      pool.push(null);
+      byeInserted = true;
+    }
+    return { pool: pool, byeInserted: byeInserted };
+  }
+
+  function generate(participants, options) {
+    if (!participants || participants.length < 2) {
+      return { rounds: [], byeUsed: false };
+    }
+
+    var opts = options || {};
+    var prepared = withBye(participants);
+    var current = prepared.pool.slice();
+    var totalRounds = prepared.pool.length - 1;
+    var rounds = [];
+
+    var r;
+    for (r = 0; r < totalRounds; r = r + 1) {
+      rounds.push(pairRound(current));
+      current = rotate(current);
+    }
+
+    if (opts.balanceHome) { rounds = balance(rounds); }
+
+    return { rounds: rounds, byeUsed: prepared.byeInserted };
+  }
+
+  return {
+    generate: generate
+  };
+}());
+
+},{}],32:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var roundRobin = require('./round_robin');
+  var doubleRR = require('./double_round_robin');
+  var groups = require('./groups');
+  var knockout = require('./knockout');
+  var calendar = require('./calendar');
+
+  var FORMATS = {
+    'league': function (teams) {
+      var schedule = roundRobin.generate(teams, { balanceHome: true });
+      return { format: 'league', rounds: schedule.rounds, byeUsed: schedule.byeUsed };
+    },
+    'double-round-robin': function (teams) {
+      var schedule = doubleRR.generate(teams);
+      return {
+        format: 'double-round-robin',
+        rounds: schedule.rounds,
+        byeUsed: schedule.byeUsed
+      };
+    },
+    'knockout': function (teams) {
+      var bracket = knockout.generate(teams);
+      return { format: 'knockout', bracket: bracket };
+    },
+    'groups-knockout': function (teams, options) {
+      var opts = options || {};
+      var groupCount = opts.groupCount || 8;
+      var groupStage = groups.generate(teams, groupCount);
+      return { format: 'groups-knockout', groups: groupStage };
+    }
+  };
+
+  function withCalendar(result, options) {
+    if (!options || !options.startDate) { return result; }
+    var step = options.daysBetween || 7;
+    var overrides = options.overrides;
+    if (result.rounds) {
+      result.rounds = calendar.assign(result.rounds, options.startDate, step, overrides);
+    }
+    if (result.groups) {
+      result.groups = result.groups.map(function (group) {
+        return {
+          name: group.name,
+          participants: group.participants,
+          rounds: calendar.assign(group.rounds, options.startDate, step, overrides)
+        };
+      });
+    }
+    return result;
+  }
+
+  function scheduleFor(format, teams, options) {
+    var fn = FORMATS[format];
+    if (!fn) {
+      throw new Error('formato desconhecido: ' + format);
+    }
+    return withCalendar(fn(teams, options), options);
+  }
+
+  return {
+    scheduleFor: scheduleFor,
+    FORMATS: Object.keys(FORMATS)
+  };
+}());
+
+},{"./calendar":27,"./double_round_robin":28,"./groups":29,"./knockout":30,"./round_robin":31}],33:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+
+  return Marionette.ItemView.extend({
+    tagName: 'tr',
+    className: 'championships-empty',
+    template: function () {
+      return '<td colspan="4" class="text-muted">Nenhum campeonato cadastrado.</td>';
+    }
+  });
+}());
+
+},{"backbone.marionette":2}],34:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var escapeHtml = require('../helpers/escape_html');
+
+  var FORMAT_OPTIONS = [
+    { value: 'league',              label: 'Pontos corridos' },
+    { value: 'double-round-robin',  label: 'Pontos corridos (ida e volta)' },
+    { value: 'groups-knockout',     label: 'Grupos + mata-mata' },
+    { value: 'knockout',            label: 'Mata-mata' }
+  ];
+
+  function formatRadios(selected) {
+    return FORMAT_OPTIONS.map(function (opt) {
+      var checked = (opt.value === selected) ? ' checked' : '';
+      return '<label class="radio">' +
+        '<input type="radio" name="format" value="' + opt.value + '"' + checked + '> ' +
+        opt.label +
+      '</label>';
+    }).join('');
+  }
+
+  function teamsCheckboxes(teams, selectedIds) {
+    var selected = {};
+    (selectedIds || []).forEach(function (id) { selected[id] = true; });
+    return teams.map(function (team) {
+      var id = team.id;
+      var name = team.get ? team.get('name') : team.name;
+      var checked = selected[id] ? ' checked' : '';
+      return '<label class="checkbox">' +
+        '<input type="checkbox" name="teamIds" value="' + escapeHtml(id) + '"' + checked + '> ' +
+        escapeHtml(name) +
+      '</label>';
+    }).join('');
+  }
+
+  return function formTemplate(data) {
+    return '' +
+      '<form class="championship-form form-horizontal">' +
+        '<div class="form-group">' +
+          '<label for="champ-name">Nome</label>' +
+          '<input type="text" id="champ-name" name="name" class="form-control" ' +
+                 'value="' + escapeHtml(data.name) + '">' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label for="champ-season">Temporada</label>' +
+          '<input type="number" id="champ-season" name="season" class="form-control" ' +
+                 'value="' + escapeHtml(data.season === null ? '' : data.season) + '">' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label for="champ-country">País</label>' +
+          '<input type="text" id="champ-country" name="country" class="form-control" ' +
+                 'value="' + escapeHtml(data.country) + '">' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label for="champ-startDate">Data da 1ª rodada</label>' +
+          '<input type="date" id="champ-startDate" name="startDate" class="form-control" ' +
+                 'value="' + escapeHtml(data.startDate) + '">' +
+        '</div>' +
+        '<div class="form-group format-group">' +
+          '<label>Formato</label>' +
+          formatRadios(data.format) +
+        '</div>' +
+        '<div class="form-group teams-group">' +
+          '<label>Times participantes</label>' +
+          teamsCheckboxes(data.availableTeams || [], data.teamIds) +
+        '</div>' +
+        '<div class="form-actions">' +
+          '<button type="submit" class="btn btn-primary">Criar e gerar calendário</button>' +
+          '<button type="button" class="btn btn-default cancel">Cancelar</button>' +
+        '</div>' +
+      '</form>';
+  };
+}());
+
+},{"../helpers/escape_html":40}],35:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var template = require('./form_template');
+  var escapeHtml = require('../helpers/escape_html');
+
+  return Marionette.ItemView.extend({
+
+    template: template,
+
+    events: {
+      'submit form.championship-form': 'onSubmit',
+      'click .cancel': 'onCancel'
+    },
+
+    initialize: function (options) {
+      var opts = options || {};
+      this.availableTeams = opts.availableTeams || [];
+    },
+
+    serializeData: function () {
+      return {
+        name: this.model.get('name') || '',
+        season: this.model.get('season'),
+        country: this.model.get('country') || '',
+        format: this.model.get('format') || 'league',
+        startDate: this.model.get('startDate') || '',
+        teamIds: this.model.get('teamIds') || [],
+        availableTeams: this.availableTeams
+      };
+    },
+
+    onSubmit: function (e) {
+      if (e && e.preventDefault) { e.preventDefault(); }
+      var checked = this.$('input[name="teamIds"]:checked').map(function () {
+        return this.value;
+      }).get();
+      var rawSeason = this.$('input[name="season"]').val();
+      var attrs = {
+        name:    this.$('input[name="name"]').val(),
+        season:  rawSeason === '' ? null : parseInt(rawSeason, 10),
+        country: this.$('input[name="country"]').val(),
+        format:  this.$('input[name="format"]:checked').val() || 'league'
+      };
+      if (!this.model.set(attrs, { validate: true })) {
+        this.showError(this.model.validationError);
+        this.trigger('form:invalid', this.model.validationError);
+        return false;
+      }
+      this.clearError();
+      this.model.save();
+      this.trigger('form:saved', this.model, {
+        teamIds: checked,
+        startDate: this.$('input[name="startDate"]').val()
+      });
+      return true;
+    },
+
+    onCancel: function () { this.trigger('form:cancel'); },
+
+    showError: function (message) {
+      this.clearError();
+      this.$('form.championship-form').prepend(
+        '<div class="alert alert-danger form-error-banner">' +
+          escapeHtml(message) +
+        '</div>'
+      );
+    },
+
+    clearError: function () {
+      this.$('.form-error-banner').remove();
+    }
+
+  });
+}());
+
+},{"../helpers/escape_html":40,"./form_template":34,"backbone.marionette":2}],36:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var RowView = require('./row_view');
+  var EmptyView = require('./empty_view');
+
+  return Marionette.CompositeView.extend({
+
+    tagName: 'table',
+    className: 'table table-striped championships-list',
+
+    template: function () {
+      return '' +
+        '<thead><tr>' +
+          '<th>Campeonato</th>' +
+          '<th>Temporada</th>' +
+          '<th>País</th>' +
+          '<th>Formato</th>' +
+        '</tr></thead>' +
+        '<tbody class="championships-rows"></tbody>' +
+        '<tfoot><tr><td colspan="4" class="text-right">' +
+          '<a class="btn btn-primary btn-sm" href="#/admin/campeonatos/novo">' +
+            '+ Novo campeonato' +
+          '</a>' +
+        '</td></tr></tfoot>';
+    },
+
+    childView: RowView,
+    emptyView: EmptyView,
+    childViewContainer: 'tbody.championships-rows'
+
+  });
+}());
+
+},{"./empty_view":33,"./row_view":37,"backbone.marionette":2}],37:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var escapeHtml = require('../helpers/escape_html');
+
+  var FORMAT_LABELS = {
+    'league': 'Pontos corridos',
+    'double-round-robin': 'Pontos corridos (ida e volta)',
+    'groups-knockout': 'Grupos + mata-mata',
+    'knockout': 'Mata-mata'
+  };
+
+  return Marionette.ItemView.extend({
+
+    tagName: 'tr',
+    className: 'championship-row',
+
+    template: function (data) {
+      var showHref = data.id ? '#/campeonatos/' + encodeURIComponent(data.id) : '#';
+      return '' +
+        '<td class="championship-name">' +
+          '<a href="' + showHref + '">' + escapeHtml(data.name) + '</a>' +
+        '</td>' +
+        '<td class="championship-season">' + escapeHtml(data.season) + '</td>' +
+        '<td class="championship-country">' + escapeHtml(data.country) + '</td>' +
+        '<td class="championship-format">' +
+          escapeHtml(FORMAT_LABELS[data.format] || data.format) +
+        '</td>';
+    }
+
+  });
+}());
+
+},{"../helpers/escape_html":40,"backbone.marionette":2}],38:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var escapeHtml = require('../helpers/escape_html');
+  var ClassificationTableView = require('../classification/table_view');
+
+  var FORMAT_LABELS = {
+    'league': 'Pontos corridos',
+    'double-round-robin': 'Pontos corridos (ida e volta)',
+    'groups-knockout': 'Grupos + mata-mata',
+    'knockout': 'Mata-mata'
+  };
+
+  return Marionette.LayoutView.extend({
+
+    className: 'championship-show',
+
+    template: function (data) {
+      return '' +
+        '<header class="page-header">' +
+          '<h1>' + escapeHtml(data.name) +
+          ' <small>' + escapeHtml(data.season) + ' · ' +
+          escapeHtml(data.country) + '</small></h1>' +
+          '<p class="format-badge">' +
+          escapeHtml(FORMAT_LABELS[data.format] || data.format) +
+          '</p>' +
+        '</header>' +
+        '<section class="classification-region"></section>' +
+        '<section class="matches-summary">' +
+          '<p class="text-muted">Total de partidas: <strong>' +
+          data.totalMatches + '</strong> · finalizadas: <strong>' +
+          data.finishedMatches + '</strong></p>' +
+        '</section>';
+    },
+
+    regions: {
+      classificationRegion: '.classification-region'
+    },
+
+    serializeData: function () {
+      var matches = this.model.matches();
+      var finished = matches.filter(function (m) { return m.isFinished(); });
+      return {
+        name: this.model.get('name'),
+        season: this.model.get('season') || '',
+        country: this.model.get('country') || '',
+        format: this.model.get('format'),
+        totalMatches: matches.length,
+        finishedMatches: finished.length
+      };
+    },
+
+    onShow: function () {
+      var rows = this.model.classification();
+      this.getRegion('classificationRegion').show(
+        new ClassificationTableView({ rows: rows })
+      );
+    }
+
+  });
+}());
+
+},{"../classification/table_view":39,"../helpers/escape_html":40,"backbone.marionette":2}],39:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var escapeHtml = require('../helpers/escape_html');
+
+  function dotsFor(results) {
+    return (results || []).map(function (r) {
+      var color = r === 'W' ? 'green' : r === 'D' ? 'gray' : 'red';
+      return '<span class="result-dot result-' + color + '">●</span>';
+    }).join('');
+  }
+
+  function renderRow(row, idx) {
+    var sg = row.goalsFor - row.goalsAgainst;
+    return '<tr>' +
+      '<td class="pos">' + (idx + 1) + '</td>' +
+      '<td class="team">' + escapeHtml(row.team) + '</td>' +
+      '<td class="p">' + row.points + '</td>' +
+      '<td class="j">' + row.played + '</td>' +
+      '<td class="v">' + row.wins + '</td>' +
+      '<td class="e">' + row.draws + '</td>' +
+      '<td class="d">' + row.losses + '</td>' +
+      '<td class="gp">' + row.goalsFor + '</td>' +
+      '<td class="gc">' + row.goalsAgainst + '</td>' +
+      '<td class="sg">' + (sg > 0 ? '+' : '') + sg + '</td>' +
+      '<td class="pct">' + row.percentage + '</td>' +
+      '<td class="ultimos">' + dotsFor(row.recentResults) + '</td>' +
+    '</tr>';
+  }
+
+  return Marionette.ItemView.extend({
+
+    tagName: 'table',
+    className: 'table table-striped classification-table',
+
+    template: function (data) {
+      var head = '<thead><tr>' +
+        '<th>#</th><th>CLASSIFICAÇÃO</th>' +
+        '<th>P</th><th>J</th><th>V</th><th>E</th><th>D</th>' +
+        '<th>GP</th><th>GC</th><th>SG</th><th>%</th>' +
+        '<th>ÚLTIMOS JOGOS</th>' +
+      '</tr></thead>';
+      var rows = (data.rows || []).map(renderRow).join('');
+      return head + '<tbody>' + rows + '</tbody>';
+    },
+
+    serializeData: function () {
+      return { rows: this.options.rows || [] };
+    }
+
+  });
+}());
+
+},{"../helpers/escape_html":40,"backbone.marionette":2}],40:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17147,7 +18325,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],20:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17162,7 +18340,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],21:[function(require,module,exports){
+},{"backbone.marionette":2}],42:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17193,7 +18371,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":19}],22:[function(require,module,exports){
+},{"../helpers/escape_html":40}],43:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17249,7 +18427,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":19,"./form_template":21,"backbone.marionette":2}],23:[function(require,module,exports){
+},{"../helpers/escape_html":40,"./form_template":42,"backbone.marionette":2}],44:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17273,7 +18451,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],24:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17295,7 +18473,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":20,"./list_template":23,"./row_view":26,"backbone.marionette":2}],25:[function(require,module,exports){
+},{"./empty_view":41,"./list_template":44,"./row_view":47,"backbone.marionette":2}],46:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17319,7 +18497,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":19}],26:[function(require,module,exports){
+},{"../helpers/escape_html":40}],47:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17348,7 +18526,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":25,"backbone.marionette":2}],27:[function(require,module,exports){
+},{"./row_template":46,"backbone.marionette":2}],48:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17411,4 +18589,4 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":19,"backbone.marionette":2}]},{},[13]);
+},{"../helpers/escape_html":40,"backbone.marionette":2}]},{},[17]);
