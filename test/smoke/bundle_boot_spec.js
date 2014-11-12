@@ -88,6 +88,36 @@ describe('smoke/bundle', function () {
     }, 400);
   });
 
+  it('navega para o detalhe do campeonato demo e mostra classificação', function (done) {
+    var bundle = fs.readFileSync(BUNDLE, 'utf8');
+    var html = '<!DOCTYPE html><html><body>' +
+      '<div id="regiao-navegacao"></div>' +
+      '<div id="regiao-mensagens"></div>' +
+      '<div id="regiao-principal"><h1>Carregando&hellip;</h1></div>' +
+      '</body></html>';
+    var doc = jsdom.jsdom(html, { url: 'http://localhost/#/campeonatos' });
+    var win = doc.defaultView;
+    polyfillLocalStorage(win);
+    try { win.eval(bundle); } catch (e) { return done(e); }
+    setTimeout(function () {
+      // first land on /campeonatos to seed, then navigate to detail
+      win.location.hash = '#/campeonatos/brasileirao-demo-2014';
+      setTimeout(function () {
+        var region = doc.getElementById('regiao-principal');
+        try {
+          var h1 = region.querySelector('h1');
+          expect(h1, 'deveria ter título h1').to.not.equal(null);
+          expect(h1.textContent).to.match(/Brasileirão/);
+          var table = region.querySelector('table.classification-table');
+          expect(table, 'classification-table deveria existir').to.not.equal(null);
+          var rows = region.querySelectorAll('table.classification-table tbody tr');
+          expect(rows.length, 'deveria haver linhas de classificação').to.be.above(0);
+          done();
+        } catch (a) { done(a); }
+      }, 300);
+    }, 300);
+  });
+
   it('navega para #/times e renderiza a tabela TeamsListView', function (done) {
     var bundle = fs.readFileSync(BUNDLE, 'utf8');
 
