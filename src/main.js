@@ -29,6 +29,7 @@
   var Championships = require('./collections/championships');
   var TeamsListView = require('./views/teams/list_view');
   var TeamFormView = require('./views/teams/form_view');
+  var HomeView = require('./views/home_view');
   var ChampionshipsListView = require('./views/championships/list_view');
   var ChampionshipShowView = require('./views/championships/show_view');
   var ChampionshipFormView = require('./views/championships/form_view');
@@ -198,6 +199,10 @@
       if (!region) { return; }
       region.show(new FlashView({ message: message, type: type || 'info' }));
     }
+
+    controller.home = function () {
+      app.getRegion('mainRegion').show(new HomeView());
+    };
 
     wireTeamRoutes(app, controller, BackboneDep, flash);
     wireChampionshipRoutes(app, controller, BackboneDep, flash);

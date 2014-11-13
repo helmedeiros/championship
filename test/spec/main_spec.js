@@ -43,10 +43,11 @@ describe('main/createApp', function () {
     expect(BaseModel.getStorage().list).to.be.a('function');
   });
 
-  it('renderiza a tela inicial após start', function () {
+  it('renderiza HomeView com atalhos após start', function () {
     var app = instance();
     app.start();
-    expect($('#regiao-principal h2').text()).to.equal('championship');
+    expect($('#regiao-principal h1').text()).to.equal('championship');
+    expect($('#regiao-principal a[href="#/campeonatos"]').length).to.be.above(0);
   });
 
   it('semeia times demo e renderiza TeamsListView ao acessar #/times', function () {
