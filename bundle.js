@@ -16930,6 +16930,7 @@ module.exports = (function () {
   var Championships = require('./collections/championships');
   var TeamsListView = require('./views/teams/list_view');
   var TeamFormView = require('./views/teams/form_view');
+  var HomeView = require('./views/home_view');
   var ChampionshipsListView = require('./views/championships/list_view');
   var ChampionshipShowView = require('./views/championships/show_view');
   var ChampionshipFormView = require('./views/championships/form_view');
@@ -17100,6 +17101,10 @@ module.exports = (function () {
       region.show(new FlashView({ message: message, type: type || 'info' }));
     }
 
+    controller.home = function () {
+      app.getRegion('mainRegion').show(new HomeView());
+    };
+
     wireTeamRoutes(app, controller, BackboneDep, flash);
     wireChampionshipRoutes(app, controller, BackboneDep, flash);
 
@@ -17143,7 +17148,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/router":10,"./app/runtime":11,"./collections/championships":14,"./collections/teams":16,"./models/championship":18,"./models/team":23,"./persistence/base_model":25,"./persistence/local_storage_adapter":26,"./views/championships/form_view":35,"./views/championships/list_view":36,"./views/championships/show_view":38,"./views/teams/form_view":43,"./views/teams/list_view":45,"./views/widgets/flash_view":48,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],18:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/router":10,"./app/runtime":11,"./collections/championships":14,"./collections/teams":16,"./models/championship":18,"./models/team":23,"./persistence/base_model":25,"./persistence/local_storage_adapter":26,"./views/championships/form_view":35,"./views/championships/list_view":36,"./views/championships/show_view":38,"./views/home_view":41,"./views/teams/form_view":44,"./views/teams/list_view":46,"./views/widgets/flash_view":49,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],18:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18332,6 +18337,55 @@ module.exports = (function () {
   var Marionette = require('backbone.marionette');
 
   return Marionette.ItemView.extend({
+
+    className: 'home',
+
+    template: function () {
+      return '' +
+        '<div class="jumbotron">' +
+          '<h1>championship</h1>' +
+          '<p class="lead">' +
+            'Cadastre times, jogadores e campeonatos. Acompanhe partidas ao vivo ' +
+            'e consulte o histórico de cada edição.' +
+          '</p>' +
+        '</div>' +
+        '<div class="row home-cards">' +
+          '<div class="col-md-4">' +
+            '<div class="panel panel-default"><div class="panel-body">' +
+              '<h3>Campeonatos</h3>' +
+              '<p>Veja a tabela de pontos e o calendário.</p>' +
+              '<a class="btn btn-primary" href="#/campeonatos">Ver campeonatos</a>' +
+            '</div></div>' +
+          '</div>' +
+          '<div class="col-md-4">' +
+            '<div class="panel panel-default"><div class="panel-body">' +
+              '<h3>Times</h3>' +
+              '<p>Cadastre clubes e seleções.</p>' +
+              '<a class="btn btn-primary" href="#/times">Ver times</a>' +
+            '</div></div>' +
+          '</div>' +
+          '<div class="col-md-4">' +
+            '<div class="panel panel-default"><div class="panel-body">' +
+              '<h3>Criar campeonato</h3>' +
+              '<p>Defina formato, times e a data da primeira rodada.</p>' +
+              '<a class="btn btn-success" href="#/admin/campeonatos/novo">' +
+                'Novo campeonato' +
+              '</a>' +
+            '</div></div>' +
+          '</div>' +
+        '</div>';
+    }
+
+  });
+}());
+
+},{"backbone.marionette":2}],42:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+
+  return Marionette.ItemView.extend({
     tagName: 'tr',
     className: 'teams-empty',
     template: function () {
@@ -18340,7 +18394,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],42:[function(require,module,exports){
+},{"backbone.marionette":2}],43:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18371,7 +18425,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":40}],43:[function(require,module,exports){
+},{"../helpers/escape_html":40}],44:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18427,7 +18481,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":40,"./form_template":42,"backbone.marionette":2}],44:[function(require,module,exports){
+},{"../helpers/escape_html":40,"./form_template":43,"backbone.marionette":2}],45:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18451,7 +18505,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],45:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18473,7 +18527,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":41,"./list_template":44,"./row_view":47,"backbone.marionette":2}],46:[function(require,module,exports){
+},{"./empty_view":42,"./list_template":45,"./row_view":48,"backbone.marionette":2}],47:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18497,7 +18551,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":40}],47:[function(require,module,exports){
+},{"../helpers/escape_html":40}],48:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18526,7 +18580,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":46,"backbone.marionette":2}],48:[function(require,module,exports){
+},{"./row_template":47,"backbone.marionette":2}],49:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
