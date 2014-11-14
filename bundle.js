@@ -18275,10 +18275,23 @@ module.exports = (function () {
     }).join('');
   }
 
-  function renderRow(row, idx) {
+  function zoneFor(zones, position) {
+    if (!zones) { return ''; }
+    var i;
+    for (i = 0; i < zones.length; i = i + 1) {
+      if (position >= zones[i].fromPos && position <= zones[i].toPos) {
+        return zones[i].cssClass;
+      }
+    }
+    return '';
+  }
+
+  function renderRow(row, idx, zones) {
+    var position = idx + 1;
     var sg = row.goalsFor - row.goalsAgainst;
-    return '<tr>' +
-      '<td class="pos">' + (idx + 1) + '</td>' +
+    var zoneCls = zoneFor(zones, position);
+    return '<tr class="' + zoneCls + '">' +
+      '<td class="pos">' + position + '</td>' +
       '<td class="team">' + escapeHtml(row.team) + '</td>' +
       '<td class="p">' + row.points + '</td>' +
       '<td class="j">' + row.played + '</td>' +
@@ -18305,12 +18318,18 @@ module.exports = (function () {
         '<th>GP</th><th>GC</th><th>SG</th><th>%</th>' +
         '<th>ÚLTIMOS JOGOS</th>' +
       '</tr></thead>';
-      var rows = (data.rows || []).map(renderRow).join('');
+      var zones = data.zones;
+      var rows = (data.rows || []).map(function (row, idx) {
+        return renderRow(row, idx, zones);
+      }).join('');
       return head + '<tbody>' + rows + '</tbody>';
     },
 
     serializeData: function () {
-      return { rows: this.options.rows || [] };
+      return {
+        rows: this.options.rows || [],
+        zones: this.options.zones || null
+      };
     }
 
   });
