@@ -48,4 +48,28 @@ describe('views/classification/TableView', function () {
     expect(view.$('.ultimos .result-red')).to.have.length(2);
   });
 
+  it('aplica classe de zona às linhas conforme posição', function () {
+    var rows = [];
+    var i;
+    for (i = 1; i <= 8; i = i + 1) {
+      rows.push({
+        team: 't' + i, points: 0, played: 0, wins: 0, draws: 0, losses: 0,
+        goalsFor: 0, goalsAgainst: 0, percentage: 0, recentResults: []
+      });
+    }
+    var view = new TableView({
+      rows: rows,
+      zones: [
+        { fromPos: 1, toPos: 2, cssClass: 'zone-libertadores' },
+        { fromPos: 7, toPos: 8, cssClass: 'zone-rebaixamento' }
+      ]
+    });
+    view.render();
+    expect(view.$('tbody tr').eq(0).hasClass('zone-libertadores')).to.equal(true);
+    expect(view.$('tbody tr').eq(1).hasClass('zone-libertadores')).to.equal(true);
+    expect(view.$('tbody tr').eq(2).hasClass('zone-libertadores')).to.equal(false);
+    expect(view.$('tbody tr').eq(6).hasClass('zone-rebaixamento')).to.equal(true);
+    expect(view.$('tbody tr').eq(7).hasClass('zone-rebaixamento')).to.equal(true);
+  });
+
 });
