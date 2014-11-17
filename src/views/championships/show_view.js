@@ -51,10 +51,26 @@ module.exports = (function () {
       };
     },
 
+    zonesFor: function (totalRows) {
+      // Brasileirão Série A vibe: top 4 → Libertadores, bottom 4 → rebaixamento.
+      if (totalRows < 4) { return null; }
+      return [
+        { fromPos: 1, toPos: Math.min(4, totalRows), cssClass: 'zone-libertadores' },
+        {
+          fromPos: Math.max(1, totalRows - 3),
+          toPos: totalRows,
+          cssClass: 'zone-rebaixamento'
+        }
+      ];
+    },
+
     onShow: function () {
       var rows = this.model.classification();
       this.getRegion('classificationRegion').show(
-        new ClassificationTableView({ rows: rows })
+        new ClassificationTableView({
+          rows: rows,
+          zones: this.zonesFor(rows.length)
+        })
       );
     }
 
