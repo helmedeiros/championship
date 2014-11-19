@@ -5,3 +5,70 @@ body {
 .navbar-brand {
   font-weight: bold;
 }
+
+.home-cards .panel {
+  min-height: 180px;
+}
+
+.classification-table .pos {
+  width: 40px;
+  text-align: center;
+  border-left: 3px solid transparent;
+}
+
+.classification-table tr.zone-libertadores .pos {
+  border-left-color: #1f7a1f;
+}
+
+.classification-table tr.zone-sulamericana .pos {
+  border-left-color: #5a9bd4;
+}
+
+.classification-table tr.zone-rebaixamento .pos {
+  border-left-color: #c0392b;
+}
+
+.classification-table .result-dot {
+  font-size: 11px;
+  margin-right: 2px;
+}
+
+.classification-table .result-green {
+  color: #1f7a1f;
+}
+
+.classification-table .result-gray {
+  color: #aaa;
+}
+
+.classification-table .result-red {
+  color: #c0392b;
+}
+
+.flash-banner {
+  margin-top: 10px;
+}
+
+.upload-widget {
+  display: inline-block;
+}
+
+.upload-preview {
+  max-width: 100px;
+  max-height: 100px;
+  border: 1px solid #ddd;
+  padding: 2px;
+  margin-bottom: 6px;
+}
+
+.format-badge {
+  display: inline-block;
+  background: #ececec;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.player-photo {
+  border-radius: 50%;
+}
