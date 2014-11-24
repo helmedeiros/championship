@@ -16879,6 +16879,18 @@ module.exports = (function () {
 
     live: function () {
       return this.filter(function (m) { return m.isLive(); });
+    },
+
+    byChampionship: function (championshipId) {
+      return this.filter(function (m) {
+        return m.get('championship') === championshipId;
+      });
+    },
+
+    byTeam: function (teamId) {
+      return this.filter(function (m) {
+        return m.get('home') === teamId || m.get('away') === teamId;
+      });
     }
 
   });
