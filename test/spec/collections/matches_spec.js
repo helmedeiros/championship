@@ -35,4 +35,25 @@ describe('collections/Matches', function () {
     expect(rodada.live()).to.have.length(2);
   });
 
+  it('byChampionship filtra partidas pelo id do campeonato', function () {
+    var coll = new Matches([
+      { home: 'a', away: 'b', championship: 'bra-2014' },
+      { home: 'c', away: 'd', championship: 'bra-2014' },
+      { home: 'e', away: 'f', championship: 'cm-2014' }
+    ]);
+    expect(coll.byChampionship('bra-2014')).to.have.length(2);
+    expect(coll.byChampionship('cm-2014')).to.have.length(1);
+  });
+
+  it('byTeam encontra partidas como mandante ou visitante', function () {
+    var coll = new Matches([
+      { home: 'sao', away: 'cor' },
+      { home: 'pal', away: 'sao' },
+      { home: 'san', away: 'cor' }
+    ]);
+    expect(coll.byTeam('sao')).to.have.length(2);
+    expect(coll.byTeam('cor')).to.have.length(2);
+    expect(coll.byTeam('san')).to.have.length(1);
+  });
+
 });
