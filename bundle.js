@@ -16703,6 +16703,182 @@ module.exports = (function () {
 module.exports = (function () {
   'use strict';
 
+  var routerConfig = require('./router');
+  var Team = require('../models/team');
+  var Teams = require('../collections/teams');
+  var Championship = require('../models/championship');
+  var Championships = require('../collections/championships');
+  var TeamsListView = require('../views/teams/list_view');
+  var TeamFormView = require('../views/teams/form_view');
+  var HomeView = require('../views/home_view');
+  var ChampionshipsListView = require('../views/championships/list_view');
+  var ChampionshipShowView = require('../views/championships/show_view');
+  var ChampionshipFormView = require('../views/championships/form_view');
+  var BaseModel = require('../persistence/base_model');
+
+  var SEED_TEAMS = [
+    { id: 'sao', name: 'São Paulo',   short: 'SAO',
+      city: 'São Paulo', stadium: 'Morumbi' },
+    { id: 'cor', name: 'Corinthians', short: 'COR',
+      city: 'São Paulo', stadium: 'Arena Corinthians' },
+    { id: 'san', name: 'Santos',      short: 'SAN',
+      city: 'Santos',    stadium: 'Vila Belmiro' },
+    { id: 'pal', name: 'Palmeiras',   short: 'PAL',
+      city: 'São Paulo', stadium: 'Allianz Parque' }
+  ];
+
+  function seedTeams() {
+    var storage = BaseModel.getStorage();
+    if (!storage || storage.list('teams').length > 0) { return; }
+    SEED_TEAMS.forEach(function (attrs) { storage.create('teams', attrs); });
+  }
+
+  function seedChampionship() {
+    var storage = BaseModel.getStorage();
+    if (!storage || storage.list('championships').length > 0) { return; }
+    seedTeams();
+    storage.create('championships', {
+      id: 'brasileirao-demo-2014',
+      name: 'Brasileirão Demo 2014',
+      season: 2014,
+      country: 'BR',
+      format: 'double-round-robin',
+      tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
+    });
+    var champ = new Championship({ id: 'brasileirao-demo-2014' });
+    champ.fetch();
+    champ.createFixtures(['sao', 'cor', 'san', 'pal'], {
+      startDate: '2014-04-19T16:00:00Z',
+      daysBetween: 7
+    });
+    var saved = storage.list('matches').slice(0, 4);
+    var sample = [
+      { homeScore: 2, awayScore: 1 },
+      { homeScore: 0, awayScore: 0 },
+      { homeScore: 3, awayScore: 2 },
+      { homeScore: 1, awayScore: 1 }
+    ];
+    saved.forEach(function (m, idx) {
+      var s = sample[idx % sample.length];
+      m.status = 'finished';
+      m.homeScore = s.homeScore;
+      m.awayScore = s.awayScore;
+      storage.update('matches', m);
+    });
+  }
+
+  function bindRouter(BackboneRef, controller) {
+    var Router = BackboneRef.Router.extend({ routes: routerConfig.routes });
+    var router = new Router();
+    Object.keys(routerConfig.routes).forEach(function (route) {
+      var handlerName = routerConfig.routes[route];
+      var handler = controller[handlerName];
+      if (typeof handler === 'function') {
+        router.on('route:' + handlerName, handler.bind(controller));
+      }
+    });
+    return router;
+  }
+
+  function wireHome(app, controller) {
+    controller.home = function () {
+      app.getRegion('mainRegion').show(new HomeView());
+    };
+  }
+
+  function wireTeamRoutes(app, controller, BackboneDep, flash) {
+    controller.teamsList = function () {
+      seedTeams();
+      var teams = new Teams();
+      teams.fetch();
+      app.getRegion('mainRegion').show(new TeamsListView({ collection: teams }));
+    };
+    controller['admin.teamNew'] = function () {
+      var form = new TeamFormView({ model: new Team() });
+      form.on('form:saved', function () {
+        flash('Time salvo com sucesso.', 'success');
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      form.on('form:cancel', function () {
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      app.getRegion('mainRegion').show(form);
+    };
+    controller['admin.teamEdit'] = function (id) {
+      var team = new Team({ id: id });
+      team.fetch();
+      var form = new TeamFormView({ model: team });
+      form.on('form:saved', function () {
+        flash('Time atualizado.', 'success');
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      form.on('form:cancel', function () {
+        BackboneDep.history.navigate('times', { trigger: true });
+      });
+      app.getRegion('mainRegion').show(form);
+    };
+  }
+
+  function wireChampionshipRoutes(app, controller, BackboneDep, flash) {
+    controller.championshipsList = function () {
+      seedChampionship();
+      var coll = new Championships();
+      coll.fetch();
+      app.getRegion('mainRegion').show(new ChampionshipsListView({ collection: coll }));
+    };
+    controller.championshipsShow = function (id) {
+      var champ = new Championship({ id: id });
+      champ.fetch();
+      app.getRegion('mainRegion').show(new ChampionshipShowView({ model: champ }));
+    };
+    controller['admin.championshipNew'] = function () {
+      var teams = new Teams();
+      teams.fetch();
+      var form = new ChampionshipFormView({
+        model: new Championship(),
+        availableTeams: teams.models
+      });
+      form.on('form:saved', function (champ, extras) {
+        if (extras && extras.teamIds && extras.teamIds.length > 0) {
+          try {
+            champ.createFixtures(extras.teamIds, {
+              startDate: extras.startDate || '2014-04-19T16:00:00Z',
+              daysBetween: 7
+            });
+            flash('Campeonato criado com calendário gerado.', 'success');
+          } catch (err) {
+            flash('Campeonato salvo, mas calendário falhou: ' + err.message, 'warning');
+          }
+        } else {
+          flash('Campeonato salvo (sem calendário gerado).', 'info');
+        }
+        BackboneDep.history.navigate('campeonatos/' + champ.id, { trigger: true });
+      });
+      form.on('form:cancel', function () {
+        BackboneDep.history.navigate('campeonatos', { trigger: true });
+      });
+      app.getRegion('mainRegion').show(form);
+    };
+  }
+
+  function wireAll(app, controller, BackboneDep, flash) {
+    wireHome(app, controller);
+    wireTeamRoutes(app, controller, BackboneDep, flash);
+    wireChampionshipRoutes(app, controller, BackboneDep, flash);
+  }
+
+  return {
+    wireAll: wireAll,
+    bindRouter: bindRouter,
+    seedTeams: seedTeams,
+    seedChampionship: seedChampionship
+  };
+}());
+
+},{"../collections/championships":15,"../collections/teams":17,"../models/championship":19,"../models/team":24,"../persistence/base_model":26,"../views/championships/form_view":36,"../views/championships/list_view":37,"../views/championships/show_view":39,"../views/home_view":42,"../views/teams/form_view":45,"../views/teams/list_view":47,"./router":10}],13:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
   var tiebreakers = require('./tiebreakers');
 
   function freshRow(teamId) {
@@ -16794,7 +16970,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./tiebreakers":13}],13:[function(require,module,exports){
+},{"./tiebreakers":14}],14:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16827,7 +17003,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16854,7 +17030,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/championship":18,"../persistence/base_collection":24}],15:[function(require,module,exports){
+},{"../models/championship":19,"../persistence/base_collection":25}],16:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16896,7 +17072,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match":19,"../persistence/base_collection":24}],16:[function(require,module,exports){
+},{"../models/match":20,"../persistence/base_collection":25}],17:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16909,7 +17085,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/team":23,"../persistence/base_collection":24}],17:[function(require,module,exports){
+},{"../models/team":24,"../persistence/base_collection":25}],18:[function(require,module,exports){
 (function (process){
 /* global process */
 (function () {
@@ -16934,161 +17110,11 @@ module.exports = (function () {
 
   var identity = require('./app/identity');
   var runtime = require('./app/runtime');
-  var routerConfig = require('./app/router');
   var Controller = require('./app/controller');
-  var Team = require('./models/team');
-  var Teams = require('./collections/teams');
-  var Championship = require('./models/championship');
-  var Championships = require('./collections/championships');
-  var TeamsListView = require('./views/teams/list_view');
-  var TeamFormView = require('./views/teams/form_view');
-  var HomeView = require('./views/home_view');
-  var ChampionshipsListView = require('./views/championships/list_view');
-  var ChampionshipShowView = require('./views/championships/show_view');
-  var ChampionshipFormView = require('./views/championships/form_view');
+  var wireRoutes = require('./app/wire_routes');
   var FlashView = require('./views/widgets/flash_view');
   var BaseModel = require('./persistence/base_model');
   var LocalStorageAdapter = require('./persistence/local_storage_adapter');
-
-  var SEED_TEAMS = [
-    { id: 'sao', name: 'São Paulo',   short: 'SAO',
-      city: 'São Paulo', stadium: 'Morumbi' },
-    { id: 'cor', name: 'Corinthians', short: 'COR',
-      city: 'São Paulo', stadium: 'Arena Corinthians' },
-    { id: 'san', name: 'Santos',      short: 'SAN',
-      city: 'Santos',    stadium: 'Vila Belmiro' },
-    { id: 'pal', name: 'Palmeiras',   short: 'PAL',
-      city: 'São Paulo', stadium: 'Allianz Parque' }
-  ];
-
-  function seedTeams() {
-    var storage = BaseModel.getStorage();
-    if (!storage || storage.list('teams').length > 0) { return; }
-    SEED_TEAMS.forEach(function (attrs) { storage.create('teams', attrs); });
-  }
-
-  function seedChampionship() {
-    var storage = BaseModel.getStorage();
-    if (!storage || storage.list('championships').length > 0) { return; }
-    seedTeams();
-    storage.create('championships', {
-      id: 'brasileirao-demo-2014',
-      name: 'Brasileirão Demo 2014',
-      season: 2014,
-      country: 'BR',
-      format: 'double-round-robin',
-      tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
-    });
-    var champ = new Championship({ id: 'brasileirao-demo-2014' });
-    champ.fetch();
-    champ.createFixtures(['sao', 'cor', 'san', 'pal'], {
-      startDate: '2014-04-19T16:00:00Z',
-      daysBetween: 7
-    });
-    // Pré-marca algumas partidas como finalizadas para popular a classificação.
-    var saved = storage.list('matches').slice(0, 4);
-    var sample = [
-      { homeScore: 2, awayScore: 1 },
-      { homeScore: 0, awayScore: 0 },
-      { homeScore: 3, awayScore: 2 },
-      { homeScore: 1, awayScore: 1 }
-    ];
-    saved.forEach(function (m, idx) {
-      var s = sample[idx % sample.length];
-      m.status = 'finished';
-      m.homeScore = s.homeScore;
-      m.awayScore = s.awayScore;
-      storage.update('matches', m);
-    });
-  }
-
-  function bindRouter(BackboneRef, controller) {
-    var Router = BackboneRef.Router.extend({ routes: routerConfig.routes });
-    var router = new Router();
-    Object.keys(routerConfig.routes).forEach(function (route) {
-      var handlerName = routerConfig.routes[route];
-      var handler = controller[handlerName];
-      if (typeof handler === 'function') {
-        router.on('route:' + handlerName, handler.bind(controller));
-      }
-    });
-    return router;
-  }
-
-  function wireTeamRoutes(app, controller, BackboneDep, flash) {
-    controller.teamsList = function () {
-      seedTeams();
-      var teams = new Teams();
-      teams.fetch();
-      app.getRegion('mainRegion').show(new TeamsListView({ collection: teams }));
-    };
-    controller['admin.teamNew'] = function () {
-      var form = new TeamFormView({ model: new Team() });
-      form.on('form:saved', function () {
-        flash('Time salvo com sucesso.', 'success');
-        BackboneDep.history.navigate('times', { trigger: true });
-      });
-      form.on('form:cancel', function () {
-        BackboneDep.history.navigate('times', { trigger: true });
-      });
-      app.getRegion('mainRegion').show(form);
-    };
-    controller['admin.teamEdit'] = function (id) {
-      var team = new Team({ id: id });
-      team.fetch();
-      var form = new TeamFormView({ model: team });
-      form.on('form:saved', function () {
-        flash('Time atualizado.', 'success');
-        BackboneDep.history.navigate('times', { trigger: true });
-      });
-      form.on('form:cancel', function () {
-        BackboneDep.history.navigate('times', { trigger: true });
-      });
-      app.getRegion('mainRegion').show(form);
-    };
-  }
-
-  function wireChampionshipRoutes(app, controller, BackboneDep, flash) {
-    controller.championshipsList = function () {
-      seedChampionship();
-      var coll = new Championships();
-      coll.fetch();
-      app.getRegion('mainRegion').show(new ChampionshipsListView({ collection: coll }));
-    };
-    controller.championshipsShow = function (id) {
-      var champ = new Championship({ id: id });
-      champ.fetch();
-      app.getRegion('mainRegion').show(new ChampionshipShowView({ model: champ }));
-    };
-    controller['admin.championshipNew'] = function () {
-      var teams = new Teams();
-      teams.fetch();
-      var form = new ChampionshipFormView({
-        model: new Championship(),
-        availableTeams: teams.models
-      });
-      form.on('form:saved', function (champ, extras) {
-        if (extras && extras.teamIds && extras.teamIds.length > 0) {
-          try {
-            champ.createFixtures(extras.teamIds, {
-              startDate: extras.startDate || '2014-04-19T16:00:00Z',
-              daysBetween: 7
-            });
-            flash('Campeonato criado com calendário gerado.', 'success');
-          } catch (err) {
-            flash('Campeonato salvo, mas o calendário falhou: ' + err.message, 'warning');
-          }
-        } else {
-          flash('Campeonato salvo (sem calendário gerado).', 'info');
-        }
-        BackboneDep.history.navigate('campeonatos/' + champ.id, { trigger: true });
-      });
-      form.on('form:cancel', function () {
-        BackboneDep.history.navigate('campeonatos', { trigger: true });
-      });
-      app.getRegion('mainRegion').show(form);
-    };
-  }
 
   function createApp(deps) {
     var MarionetteDep = (deps && deps.Marionette) || Marionette;
@@ -17113,19 +17139,14 @@ module.exports = (function () {
       region.show(new FlashView({ message: message, type: type || 'info' }));
     }
 
-    controller.home = function () {
-      app.getRegion('mainRegion').show(new HomeView());
-    };
-
-    wireTeamRoutes(app, controller, BackboneDep, flash);
-    wireChampionshipRoutes(app, controller, BackboneDep, flash);
+    wireRoutes.wireAll(app, controller, BackboneDep, flash);
 
     app.addInitializer(function () {
       BaseModel.setStorage(storageFactory());
     });
 
     app.on('start', function () {
-      bindRouter(BackboneDep, controller);
+      wireRoutes.bindRouter(BackboneDep, controller);
       if (!BackboneDep.History.started) {
         BackboneDep.history.start();
       }
@@ -17160,7 +17181,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/router":10,"./app/runtime":11,"./collections/championships":14,"./collections/teams":16,"./models/championship":18,"./models/team":23,"./persistence/base_model":25,"./persistence/local_storage_adapter":26,"./views/championships/form_view":35,"./views/championships/list_view":36,"./views/championships/show_view":38,"./views/home_view":41,"./views/teams/form_view":44,"./views/teams/list_view":46,"./views/widgets/flash_view":49,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],18:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":26,"./persistence/local_storage_adapter":27,"./views/widgets/flash_view":50,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],19:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17256,7 +17277,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table":12,"../collections/matches":15,"../persistence/base_model":25,"../scheduling/scheduler":32,"./messages/championship":20}],19:[function(require,module,exports){
+},{"../classification/table":13,"../collections/matches":16,"../persistence/base_model":26,"../scheduling/scheduler":33,"./messages/championship":21}],20:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17314,7 +17335,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":25,"./messages/match":21}],20:[function(require,module,exports){
+},{"../persistence/base_model":26,"./messages/match":22}],21:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17325,7 +17346,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17336,7 +17357,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17345,7 +17366,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17374,7 +17395,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":25,"./messages/team":22}],24:[function(require,module,exports){
+},{"../persistence/base_model":26,"./messages/team":23}],25:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17414,7 +17435,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./base_model":25,"backbone":4}],25:[function(require,module,exports){
+},{"./base_model":26,"backbone":4}],26:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17483,7 +17504,7 @@ module.exports = (function () {
   return BaseModel;
 }());
 
-},{"backbone":4}],26:[function(require,module,exports){
+},{"backbone":4}],27:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17596,7 +17617,7 @@ module.exports = (function () {
   return LocalStorageAdapter;
 }());
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17655,7 +17676,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17679,7 +17700,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{"./round_robin":31}],29:[function(require,module,exports){
+},{"./round_robin":32}],30:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17753,7 +17774,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./round_robin":31}],30:[function(require,module,exports){
+},{"./round_robin":32}],31:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17816,7 +17837,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17901,7 +17922,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17969,7 +17990,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./calendar":27,"./double_round_robin":28,"./groups":29,"./knockout":30,"./round_robin":31}],33:[function(require,module,exports){
+},{"./calendar":28,"./double_round_robin":29,"./groups":30,"./knockout":31,"./round_robin":32}],34:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17984,7 +18005,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],34:[function(require,module,exports){
+},{"backbone.marionette":2}],35:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18060,7 +18081,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":40}],35:[function(require,module,exports){
+},{"../helpers/escape_html":41}],36:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18138,7 +18159,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":40,"./form_template":34,"backbone.marionette":2}],36:[function(require,module,exports){
+},{"../helpers/escape_html":41,"./form_template":35,"backbone.marionette":2}],37:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18174,7 +18195,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":33,"./row_view":37,"backbone.marionette":2}],37:[function(require,module,exports){
+},{"./empty_view":34,"./row_view":38,"backbone.marionette":2}],38:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18209,7 +18230,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":40,"backbone.marionette":2}],38:[function(require,module,exports){
+},{"../helpers/escape_html":41,"backbone.marionette":2}],39:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18289,7 +18310,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table_view":39,"../helpers/escape_html":40,"backbone.marionette":2}],39:[function(require,module,exports){
+},{"../classification/table_view":40,"../helpers/escape_html":41,"backbone.marionette":2}],40:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18363,7 +18384,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":40,"backbone.marionette":2}],40:[function(require,module,exports){
+},{"../helpers/escape_html":41,"backbone.marionette":2}],41:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18377,7 +18398,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],41:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18426,7 +18447,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],42:[function(require,module,exports){
+},{"backbone.marionette":2}],43:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18441,7 +18462,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],43:[function(require,module,exports){
+},{"backbone.marionette":2}],44:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18472,7 +18493,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":40}],44:[function(require,module,exports){
+},{"../helpers/escape_html":41}],45:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18528,7 +18549,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":40,"./form_template":43,"backbone.marionette":2}],45:[function(require,module,exports){
+},{"../helpers/escape_html":41,"./form_template":44,"backbone.marionette":2}],46:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18552,7 +18573,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],46:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18574,7 +18595,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":42,"./list_template":45,"./row_view":48,"backbone.marionette":2}],47:[function(require,module,exports){
+},{"./empty_view":43,"./list_template":46,"./row_view":49,"backbone.marionette":2}],48:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18598,7 +18619,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":40}],48:[function(require,module,exports){
+},{"../helpers/escape_html":41}],49:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18627,7 +18648,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":47,"backbone.marionette":2}],49:[function(require,module,exports){
+},{"./row_template":48,"backbone.marionette":2}],50:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18690,4 +18711,4 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":40,"backbone.marionette":2}]},{},[17]);
+},{"../helpers/escape_html":41,"backbone.marionette":2}]},{},[18]);
