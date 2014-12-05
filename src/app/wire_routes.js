@@ -12,6 +12,8 @@ module.exports = (function () {
   var ChampionshipsListView = require('../views/championships/list_view');
   var ChampionshipShowView = require('../views/championships/show_view');
   var ChampionshipFormView = require('../views/championships/form_view');
+  var Match = require('../models/match');
+  var MatchShowView = require('../views/matches/show_view');
   var BaseModel = require('../persistence/base_model');
 
   var SEED_TEAMS = [
@@ -159,10 +161,19 @@ module.exports = (function () {
     };
   }
 
+  function wireMatchRoutes(app, controller) {
+    controller.matchShow = function (id) {
+      var match = new Match({ id: id });
+      match.fetch();
+      app.getRegion('mainRegion').show(new MatchShowView({ model: match }));
+    };
+  }
+
   function wireAll(app, controller, BackboneDep, flash) {
     wireHome(app, controller);
     wireTeamRoutes(app, controller, BackboneDep, flash);
     wireChampionshipRoutes(app, controller, BackboneDep, flash);
+    wireMatchRoutes(app, controller);
   }
 
   return {
