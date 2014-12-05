@@ -16714,6 +16714,8 @@ module.exports = (function () {
   var ChampionshipsListView = require('../views/championships/list_view');
   var ChampionshipShowView = require('../views/championships/show_view');
   var ChampionshipFormView = require('../views/championships/form_view');
+  var Match = require('../models/match');
+  var MatchShowView = require('../views/matches/show_view');
   var BaseModel = require('../persistence/base_model');
 
   var SEED_TEAMS = [
@@ -16861,10 +16863,19 @@ module.exports = (function () {
     };
   }
 
+  function wireMatchRoutes(app, controller) {
+    controller.matchShow = function (id) {
+      var match = new Match({ id: id });
+      match.fetch();
+      app.getRegion('mainRegion').show(new MatchShowView({ model: match }));
+    };
+  }
+
   function wireAll(app, controller, BackboneDep, flash) {
     wireHome(app, controller);
     wireTeamRoutes(app, controller, BackboneDep, flash);
     wireChampionshipRoutes(app, controller, BackboneDep, flash);
+    wireMatchRoutes(app, controller);
   }
 
   return {
@@ -16875,7 +16886,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":15,"../collections/teams":17,"../models/championship":19,"../models/team":24,"../persistence/base_model":26,"../views/championships/form_view":36,"../views/championships/list_view":37,"../views/championships/show_view":39,"../views/home_view":42,"../views/teams/form_view":45,"../views/teams/list_view":47,"./router":10}],13:[function(require,module,exports){
+},{"../collections/championships":15,"../collections/teams":18,"../models/championship":20,"../models/match":21,"../models/team":27,"../persistence/base_model":29,"../views/championships/form_view":39,"../views/championships/list_view":40,"../views/championships/show_view":42,"../views/home_view":45,"../views/matches/show_view":48,"../views/teams/form_view":52,"../views/teams/list_view":54,"./router":10}],13:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17030,7 +17041,41 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/championship":19,"../persistence/base_collection":25}],16:[function(require,module,exports){
+},{"../models/championship":20,"../persistence/base_collection":28}],16:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var BaseCollection = require('../persistence/base_collection');
+  var MatchEvent = require('../models/match_event');
+
+  return BaseCollection.extend({
+
+    model: MatchEvent,
+
+    comparator: function (event) {
+      var half = event.get('half') || 0;
+      var minute = event.get('minute') || 0;
+      return half * 1000 + minute;
+    },
+
+    goals: function () {
+      return this.filter(function (e) {
+        var t = e.get('type');
+        return t === 'goal' || t === 'own_goal';
+      });
+    },
+
+    cards: function () {
+      return this.filter(function (e) {
+        var t = e.get('type');
+        return t === 'yellow' || t === 'red';
+      });
+    }
+
+  });
+}());
+
+},{"../models/match_event":22,"../persistence/base_collection":28}],17:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17072,7 +17117,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match":20,"../persistence/base_collection":25}],17:[function(require,module,exports){
+},{"../models/match":21,"../persistence/base_collection":28}],18:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17085,7 +17130,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/team":24,"../persistence/base_collection":25}],18:[function(require,module,exports){
+},{"../models/team":27,"../persistence/base_collection":28}],19:[function(require,module,exports){
 (function (process){
 /* global process */
 (function () {
@@ -17181,7 +17226,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":26,"./persistence/local_storage_adapter":27,"./views/widgets/flash_view":50,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],19:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":29,"./persistence/local_storage_adapter":30,"./views/widgets/flash_view":57,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],20:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17277,7 +17322,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table":13,"../collections/matches":16,"../persistence/base_model":26,"../scheduling/scheduler":33,"./messages/championship":21}],20:[function(require,module,exports){
+},{"../classification/table":13,"../collections/matches":17,"../persistence/base_model":29,"../scheduling/scheduler":36,"./messages/championship":23}],21:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17335,7 +17380,70 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":26,"./messages/match":22}],21:[function(require,module,exports){
+},{"../persistence/base_model":29,"./messages/match":24}],22:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var BaseModel = require('../persistence/base_model');
+  var messages = require('./messages/match_event');
+
+  var TYPES = [
+    'kickoff',
+    'goal',
+    'own_goal',
+    'yellow',
+    'red',
+    'sub',
+    'var',
+    'comment',
+    'half_time',
+    'full_time'
+  ];
+
+  var HALVES = [1, 2, 3, 4];
+
+  function contains(list, value) {
+    var i;
+    for (i = 0; i < list.length; i = i + 1) {
+      if (list[i] === value) { return true; }
+    }
+    return false;
+  }
+
+  return BaseModel.extend({
+
+    bucket: 'match_events',
+
+    TYPES: TYPES,
+    HALVES: HALVES,
+
+    defaults: {
+      type: '',
+      half: 1,
+      minute: 0,
+      player: null,
+      text: ''
+    },
+
+    validate: function (attrs) {
+      if (!attrs.type) {
+        return messages.TYPE_REQUIRED;
+      }
+      if (!contains(TYPES, attrs.type)) {
+        return messages.TYPE_UNKNOWN;
+      }
+      if (!contains(HALVES, attrs.half)) {
+        return messages.HALF_UNKNOWN;
+      }
+      if (typeof attrs.minute !== 'number' || attrs.minute < 0 || attrs.minute > 120) {
+        return messages.MINUTE_RANGE;
+      }
+    }
+
+  });
+}());
+
+},{"../persistence/base_model":29,"./messages/match_event":25}],23:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17346,7 +17454,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],22:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17357,7 +17465,19 @@ module.exports = (function () {
   };
 }());
 
-},{}],23:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  return {
+    TYPE_REQUIRED: 'O tipo do evento é obrigatório',
+    TYPE_UNKNOWN: 'Tipo de evento desconhecido',
+    MINUTE_RANGE: 'O minuto do evento precisa estar entre 0 e 120',
+    HALF_UNKNOWN: 'Meio tempo inválido (1, 2, 3 prorrogação ou 4 prorrogação)'
+  };
+}());
+
+},{}],26:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17366,7 +17486,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],24:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17395,7 +17515,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":26,"./messages/team":23}],25:[function(require,module,exports){
+},{"../persistence/base_model":29,"./messages/team":26}],28:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17435,7 +17555,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./base_model":26,"backbone":4}],26:[function(require,module,exports){
+},{"./base_model":29,"backbone":4}],29:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17504,7 +17624,7 @@ module.exports = (function () {
   return BaseModel;
 }());
 
-},{"backbone":4}],27:[function(require,module,exports){
+},{"backbone":4}],30:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17617,7 +17737,7 @@ module.exports = (function () {
   return LocalStorageAdapter;
 }());
 
-},{}],28:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17676,7 +17796,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],29:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17700,7 +17820,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{"./round_robin":32}],30:[function(require,module,exports){
+},{"./round_robin":35}],33:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17774,7 +17894,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./round_robin":32}],31:[function(require,module,exports){
+},{"./round_robin":35}],34:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17837,7 +17957,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{}],32:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17922,7 +18042,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],33:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17990,7 +18110,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./calendar":28,"./double_round_robin":29,"./groups":30,"./knockout":31,"./round_robin":32}],34:[function(require,module,exports){
+},{"./calendar":31,"./double_round_robin":32,"./groups":33,"./knockout":34,"./round_robin":35}],37:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18005,7 +18125,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],35:[function(require,module,exports){
+},{"backbone.marionette":2}],38:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18081,7 +18201,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":41}],36:[function(require,module,exports){
+},{"../helpers/escape_html":44}],39:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18159,7 +18279,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":41,"./form_template":35,"backbone.marionette":2}],37:[function(require,module,exports){
+},{"../helpers/escape_html":44,"./form_template":38,"backbone.marionette":2}],40:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18195,7 +18315,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":34,"./row_view":38,"backbone.marionette":2}],38:[function(require,module,exports){
+},{"./empty_view":37,"./row_view":41,"backbone.marionette":2}],41:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18230,7 +18350,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":41,"backbone.marionette":2}],39:[function(require,module,exports){
+},{"../helpers/escape_html":44,"backbone.marionette":2}],42:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18310,7 +18430,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table_view":40,"../helpers/escape_html":41,"backbone.marionette":2}],40:[function(require,module,exports){
+},{"../classification/table_view":43,"../helpers/escape_html":44,"backbone.marionette":2}],43:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18384,7 +18504,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":41,"backbone.marionette":2}],41:[function(require,module,exports){
+},{"../helpers/escape_html":44,"backbone.marionette":2}],44:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18398,7 +18518,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],42:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18447,7 +18567,192 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],43:[function(require,module,exports){
+},{"backbone.marionette":2}],46:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var escapeHtml = require('../helpers/escape_html');
+
+  var ICONS = {
+    goal:      '⚽',
+    own_goal:  '⚽',
+    yellow:    '🟨',
+    red:       '🟥',
+    sub:       '🔁',
+    kickoff:   '⏱',
+    half_time: '⏸',
+    full_time: '⏹',
+    var:       'VAR',
+    comment:   '💬'
+  };
+
+  var TYPE_LABEL = {
+    goal:      'Gol',
+    own_goal:  'Gol contra',
+    yellow:    'Amarelo',
+    red:       'Vermelho',
+    sub:       'Substituição',
+    kickoff:   'Início',
+    half_time: 'Intervalo',
+    full_time: 'Fim de jogo',
+    var:       'VAR',
+    comment:   ''
+  };
+
+  return Marionette.ItemView.extend({
+
+    tagName: 'li',
+    className: 'event-item',
+
+    template: function (data) {
+      var minute = data.minute || 0;
+      var half = data.half || 1;
+      var label = TYPE_LABEL[data.type] || data.type;
+      var icon = ICONS[data.type] || '·';
+      return '' +
+        '<span class="event-minute">' + minute + '<small>'+ half + 'T</small></span>' +
+        '<span class="event-icon" data-type="' + data.type + '">' + icon + '</span>' +
+        '<span class="event-body">' +
+          (label ? '<strong>' + escapeHtml(label) + '</strong> ' : '') +
+          escapeHtml(data.text || '') +
+        '</span>';
+    }
+
+  });
+}());
+
+},{"../helpers/escape_html":44,"backbone.marionette":2}],47:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var escapeHtml = require('../helpers/escape_html');
+
+  var STATUS_LABEL = {
+    scheduled: 'A iniciar',
+    live: 'EM ANDAMENTO',
+    half: 'INTERVALO',
+    finished: 'ENCERRADO',
+    postponed: 'ADIADA'
+  };
+
+  return Marionette.ItemView.extend({
+
+    className: 'match-header',
+
+    template: function (data) {
+      return '' +
+        '<div class="match-stadium-line text-muted">' +
+          escapeHtml(data.stadium || '—') +
+        '</div>' +
+        '<div class="match-scoreboard">' +
+          '<span class="team-home">' + escapeHtml(data.home) + '</span>' +
+          '<span class="score-home">' + escapeHtml(data.homeScore) + '</span>' +
+          '<span class="vs">×</span>' +
+          '<span class="score-away">' + escapeHtml(data.awayScore) + '</span>' +
+          '<span class="team-away">' + escapeHtml(data.away) + '</span>' +
+        '</div>' +
+        '<div class="match-status status-' + data.status + '">' +
+          escapeHtml(STATUS_LABEL[data.status] || data.status) +
+        '</div>';
+    },
+
+    modelEvents: {
+      'change:status change:homeScore change:awayScore': 'render'
+    }
+
+  });
+}());
+
+},{"../helpers/escape_html":44,"backbone.marionette":2}],48:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var MatchEvents = require('../../collections/match_events');
+  var HeaderView = require('./header_view');
+  var TimelineView = require('./timeline_view');
+  var BaseModel = require('../../persistence/base_model');
+
+  return Marionette.LayoutView.extend({
+
+    className: 'match-show',
+
+    template: function () {
+      return '' +
+        '<section class="match-header-region"></section>' +
+        '<div class="row">' +
+          '<div class="col-md-8">' +
+            '<h3>Linha do tempo</h3>' +
+            '<section class="match-timeline-region"></section>' +
+          '</div>' +
+          '<div class="col-md-4">' +
+            '<h3>Resumo</h3>' +
+            '<p class="text-muted match-meta">' +
+              'Campeonato: <strong class="match-championship"></strong>' +
+            '</p>' +
+          '</div>' +
+        '</div>';
+    },
+
+    regions: {
+      headerRegion: '.match-header-region',
+      timelineRegion: '.match-timeline-region'
+    },
+
+    initialize: function (options) {
+      // Cuidado: não use `this.events` — Backbone.View já reserva esse nome
+      // para o hash de eventos do DOM.
+      this.matchEvents = (options && options.matchEvents) || this._loadEvents();
+    },
+
+    _loadEvents: function () {
+      var storage = BaseModel.getStorage();
+      if (!storage) { return new MatchEvents(); }
+      var matchId = this.model.id;
+      var raw = storage.list('match_events').filter(function (e) {
+        return e.match === matchId;
+      });
+      return new MatchEvents(raw);
+    },
+
+    onRender: function () {
+      this.$('.match-championship').text(this.model.get('championship') || '—');
+    },
+
+    onShow: function () {
+      this.getRegion('headerRegion').show(new HeaderView({ model: this.model }));
+      this.getRegion('timelineRegion').show(
+        new TimelineView({ collection: this.matchEvents })
+      );
+    }
+
+  });
+}());
+
+},{"../../collections/match_events":16,"../../persistence/base_model":29,"./header_view":47,"./timeline_view":49,"backbone.marionette":2}],49:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var EventItemView = require('./event_item_view');
+
+  return Marionette.CollectionView.extend({
+
+    tagName: 'ol',
+    className: 'event-timeline list-unstyled',
+    childView: EventItemView,
+
+    // Newest event on top.
+    attachHtml: function (collectionView, childView) {
+      collectionView.$el.prepend(childView.el);
+    }
+
+  });
+}());
+
+},{"./event_item_view":46,"backbone.marionette":2}],50:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18462,7 +18767,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],44:[function(require,module,exports){
+},{"backbone.marionette":2}],51:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18493,7 +18798,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":41}],45:[function(require,module,exports){
+},{"../helpers/escape_html":44}],52:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18549,7 +18854,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":41,"./form_template":44,"backbone.marionette":2}],46:[function(require,module,exports){
+},{"../helpers/escape_html":44,"./form_template":51,"backbone.marionette":2}],53:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18573,7 +18878,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],47:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18595,7 +18900,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":43,"./list_template":46,"./row_view":49,"backbone.marionette":2}],48:[function(require,module,exports){
+},{"./empty_view":50,"./list_template":53,"./row_view":56,"backbone.marionette":2}],55:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18619,7 +18924,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":41}],49:[function(require,module,exports){
+},{"../helpers/escape_html":44}],56:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18648,7 +18953,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":48,"backbone.marionette":2}],50:[function(require,module,exports){
+},{"./row_template":55,"backbone.marionette":2}],57:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18711,4 +19016,4 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":41,"backbone.marionette":2}]},{},[18]);
+},{"../helpers/escape_html":44,"backbone.marionette":2}]},{},[19]);
