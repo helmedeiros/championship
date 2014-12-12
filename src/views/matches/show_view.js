@@ -6,6 +6,7 @@ module.exports = (function () {
   var HeaderView = require('./header_view');
   var TimelineView = require('./timeline_view');
   var BaseModel = require('../../persistence/base_model');
+  var crossTab = require('../../live/cross_tab');
 
   return Marionette.LayoutView.extend({
 
@@ -58,6 +59,22 @@ module.exports = (function () {
       this.getRegion('timelineRegion').show(
         new TimelineView({ collection: this.matchEvents })
       );
+      this._bindLive();
+    },
+
+    _bindLive: function () {
+      var view = this;
+      var win = typeof window !== 'undefined' ? window : null;
+      if (!win) { return; }
+      this._unbindLive = crossTab.bind(win, 'championship', function (change) {
+        if (change.bucket !== 'match_events') { return; }
+        var fresh = view._loadEvents();
+        view.matchEvents.reset(fresh.toJSON());
+      });
+    },
+
+    onDestroy: function () {
+      if (this._unbindLive) { this._unbindLive(); }
     }
 
   });
