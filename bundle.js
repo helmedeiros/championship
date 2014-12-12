@@ -16898,7 +16898,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":15,"../collections/teams":18,"../models/championship":20,"../models/match":21,"../models/team":27,"../persistence/base_model":29,"../views/championships/form_view":39,"../views/championships/list_view":40,"../views/championships/show_view":42,"../views/home_view":45,"../views/matches/scorer_view":48,"../views/matches/show_view":49,"../views/teams/form_view":53,"../views/teams/list_view":55,"./router":10}],13:[function(require,module,exports){
+},{"../collections/championships":15,"../collections/teams":18,"../models/championship":21,"../models/match":22,"../models/team":28,"../persistence/base_model":30,"../views/championships/form_view":40,"../views/championships/list_view":41,"../views/championships/show_view":43,"../views/home_view":46,"../views/matches/scorer_view":49,"../views/matches/show_view":50,"../views/teams/form_view":54,"../views/teams/list_view":56,"./router":10}],13:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17053,7 +17053,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/championship":20,"../persistence/base_collection":28}],16:[function(require,module,exports){
+},{"../models/championship":21,"../persistence/base_collection":29}],16:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17087,7 +17087,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match_event":22,"../persistence/base_collection":28}],17:[function(require,module,exports){
+},{"../models/match_event":23,"../persistence/base_collection":29}],17:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17129,7 +17129,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match":21,"../persistence/base_collection":28}],18:[function(require,module,exports){
+},{"../models/match":22,"../persistence/base_collection":29}],18:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17142,7 +17142,41 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/team":27,"../persistence/base_collection":28}],19:[function(require,module,exports){
+},{"../models/team":28,"../persistence/base_collection":29}],19:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // Propaga eventos entre abas via o evento `storage` do navegador.
+  // Quando uma aba grava em localStorage com prefixo championship:, outras
+  // abas recebem `storage` event automaticamente.
+
+  function bind(targetWindow, prefix, onChange) {
+    var win = targetWindow || (typeof window !== 'undefined' ? window : null);
+    if (!win || typeof win.addEventListener !== 'function') {
+      return function () {};
+    }
+    var handler = function (event) {
+      if (!event || !event.key) { return; }
+      if (event.key.indexOf(prefix + ':') !== 0) { return; }
+      var bucket = event.key.substring(prefix.length + 1);
+      var newValue = null;
+      try {
+        newValue = event.newValue ? JSON.parse(event.newValue) : null;
+      } catch (err) {
+        newValue = null;
+      }
+      onChange({ bucket: bucket, value: newValue, raw: event });
+    };
+    win.addEventListener('storage', handler);
+    return function unbind() {
+      win.removeEventListener('storage', handler);
+    };
+  }
+
+  return { bind: bind };
+}());
+
+},{}],20:[function(require,module,exports){
 (function (process){
 /* global process */
 (function () {
@@ -17238,7 +17272,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":29,"./persistence/local_storage_adapter":30,"./views/widgets/flash_view":58,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],20:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":30,"./persistence/local_storage_adapter":31,"./views/widgets/flash_view":59,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],21:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17334,7 +17368,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table":13,"../collections/matches":17,"../persistence/base_model":29,"../scheduling/scheduler":36,"./messages/championship":23}],21:[function(require,module,exports){
+},{"../classification/table":13,"../collections/matches":17,"../persistence/base_model":30,"../scheduling/scheduler":37,"./messages/championship":24}],22:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17392,7 +17426,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":29,"./messages/match":24}],22:[function(require,module,exports){
+},{"../persistence/base_model":30,"./messages/match":25}],23:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17455,7 +17489,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":29,"./messages/match_event":25}],23:[function(require,module,exports){
+},{"../persistence/base_model":30,"./messages/match_event":26}],24:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17466,7 +17500,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17477,7 +17511,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17489,7 +17523,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17498,7 +17532,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17527,7 +17561,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":29,"./messages/team":26}],28:[function(require,module,exports){
+},{"../persistence/base_model":30,"./messages/team":27}],29:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17567,7 +17601,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./base_model":29,"backbone":4}],29:[function(require,module,exports){
+},{"./base_model":30,"backbone":4}],30:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17636,7 +17670,7 @@ module.exports = (function () {
   return BaseModel;
 }());
 
-},{"backbone":4}],30:[function(require,module,exports){
+},{"backbone":4}],31:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17749,7 +17783,7 @@ module.exports = (function () {
   return LocalStorageAdapter;
 }());
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17808,7 +17842,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17832,7 +17866,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{"./round_robin":35}],33:[function(require,module,exports){
+},{"./round_robin":36}],34:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17906,7 +17940,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./round_robin":35}],34:[function(require,module,exports){
+},{"./round_robin":36}],35:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17969,7 +18003,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{}],35:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18054,7 +18088,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],36:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18122,7 +18156,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./calendar":31,"./double_round_robin":32,"./groups":33,"./knockout":34,"./round_robin":35}],37:[function(require,module,exports){
+},{"./calendar":32,"./double_round_robin":33,"./groups":34,"./knockout":35,"./round_robin":36}],38:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18137,7 +18171,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],38:[function(require,module,exports){
+},{"backbone.marionette":2}],39:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18213,7 +18247,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":44}],39:[function(require,module,exports){
+},{"../helpers/escape_html":45}],40:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18291,7 +18325,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":44,"./form_template":38,"backbone.marionette":2}],40:[function(require,module,exports){
+},{"../helpers/escape_html":45,"./form_template":39,"backbone.marionette":2}],41:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18327,7 +18361,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":37,"./row_view":41,"backbone.marionette":2}],41:[function(require,module,exports){
+},{"./empty_view":38,"./row_view":42,"backbone.marionette":2}],42:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18362,7 +18396,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":44,"backbone.marionette":2}],42:[function(require,module,exports){
+},{"../helpers/escape_html":45,"backbone.marionette":2}],43:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18442,7 +18476,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table_view":43,"../helpers/escape_html":44,"backbone.marionette":2}],43:[function(require,module,exports){
+},{"../classification/table_view":44,"../helpers/escape_html":45,"backbone.marionette":2}],44:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18516,7 +18550,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":44,"backbone.marionette":2}],44:[function(require,module,exports){
+},{"../helpers/escape_html":45,"backbone.marionette":2}],45:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18530,7 +18564,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],45:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18579,7 +18613,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],46:[function(require,module,exports){
+},{"backbone.marionette":2}],47:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18634,7 +18668,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":44,"backbone.marionette":2}],47:[function(require,module,exports){
+},{"../helpers/escape_html":45,"backbone.marionette":2}],48:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18677,7 +18711,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":44,"backbone.marionette":2}],48:[function(require,module,exports){
+},{"../helpers/escape_html":45,"backbone.marionette":2}],49:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18817,7 +18851,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../models/match_event":22,"../../persistence/base_model":29,"../helpers/escape_html":44,"backbone.marionette":2}],49:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../models/match_event":23,"../../persistence/base_model":30,"../helpers/escape_html":45,"backbone.marionette":2}],50:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18826,6 +18860,7 @@ module.exports = (function () {
   var HeaderView = require('./header_view');
   var TimelineView = require('./timeline_view');
   var BaseModel = require('../../persistence/base_model');
+  var crossTab = require('../../live/cross_tab');
 
   return Marionette.LayoutView.extend({
 
@@ -18878,12 +18913,28 @@ module.exports = (function () {
       this.getRegion('timelineRegion').show(
         new TimelineView({ collection: this.matchEvents })
       );
+      this._bindLive();
+    },
+
+    _bindLive: function () {
+      var view = this;
+      var win = typeof window !== 'undefined' ? window : null;
+      if (!win) { return; }
+      this._unbindLive = crossTab.bind(win, 'championship', function (change) {
+        if (change.bucket !== 'match_events') { return; }
+        var fresh = view._loadEvents();
+        view.matchEvents.reset(fresh.toJSON());
+      });
+    },
+
+    onDestroy: function () {
+      if (this._unbindLive) { this._unbindLive(); }
     }
 
   });
 }());
 
-},{"../../collections/match_events":16,"../../persistence/base_model":29,"./header_view":47,"./timeline_view":50,"backbone.marionette":2}],50:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../live/cross_tab":19,"../../persistence/base_model":30,"./header_view":48,"./timeline_view":51,"backbone.marionette":2}],51:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18904,7 +18955,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./event_item_view":46,"backbone.marionette":2}],51:[function(require,module,exports){
+},{"./event_item_view":47,"backbone.marionette":2}],52:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18919,7 +18970,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],52:[function(require,module,exports){
+},{"backbone.marionette":2}],53:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18950,7 +19001,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":44}],53:[function(require,module,exports){
+},{"../helpers/escape_html":45}],54:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19006,7 +19057,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":44,"./form_template":52,"backbone.marionette":2}],54:[function(require,module,exports){
+},{"../helpers/escape_html":45,"./form_template":53,"backbone.marionette":2}],55:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19030,7 +19081,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],55:[function(require,module,exports){
+},{}],56:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19052,7 +19103,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":51,"./list_template":54,"./row_view":57,"backbone.marionette":2}],56:[function(require,module,exports){
+},{"./empty_view":52,"./list_template":55,"./row_view":58,"backbone.marionette":2}],57:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19076,7 +19127,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":44}],57:[function(require,module,exports){
+},{"../helpers/escape_html":45}],58:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19105,7 +19156,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":56,"backbone.marionette":2}],58:[function(require,module,exports){
+},{"./row_template":57,"backbone.marionette":2}],59:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19168,4 +19219,4 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":44,"backbone.marionette":2}]},{},[19]);
+},{"../helpers/escape_html":45,"backbone.marionette":2}]},{},[20]);
