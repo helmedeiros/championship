@@ -118,6 +118,37 @@ describe('smoke/bundle', function () {
     }, 300);
   });
 
+  it('navega para o scoreboard admin e renderiza ScorerView', function (done) {
+    var bundle = fs.readFileSync(BUNDLE, 'utf8');
+    var html = '<!DOCTYPE html><html><body>' +
+      '<div id="regiao-navegacao"></div>' +
+      '<div id="regiao-mensagens"></div>' +
+      '<div id="regiao-principal"><h1>Carregando&hellip;</h1></div>' +
+      '</body></html>';
+    var doc = jsdom.jsdom(html, { url: 'http://localhost/#/campeonatos' });
+    var win = doc.defaultView;
+    polyfillLocalStorage(win);
+    try { win.eval(bundle); } catch (e) { return done(e); }
+    setTimeout(function () {
+      // need a real match id: grab the first match of the seeded championship
+      var raw = win.localStorage.getItem('championship:matches');
+      var matches = raw ? JSON.parse(raw) : [];
+      expect(matches.length, 'seed deveria ter criado partidas').to.be.above(0);
+      var firstId = matches[0].id;
+      win.location.hash = '#/admin/partidas/' + firstId + '/scoreboard';
+      setTimeout(function () {
+        var region = doc.getElementById('regiao-principal');
+        try {
+          expect(region.querySelector('.scorer'), 'scorer deveria renderizar')
+            .to.not.equal(null);
+          expect(region.querySelector('.goal-home'), 'botão gol mandante').to.not.equal(null);
+          expect(region.querySelector('.goal-away'), 'botão gol visitante').to.not.equal(null);
+          done();
+        } catch (a) { done(a); }
+      }, 300);
+    }, 300);
+  });
+
   it('navega para #/times e renderiza a tabela TeamsListView', function (done) {
     var bundle = fs.readFileSync(BUNDLE, 'utf8');
 
