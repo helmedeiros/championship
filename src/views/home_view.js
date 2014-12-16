@@ -2,6 +2,50 @@ module.exports = (function () {
   'use strict';
 
   var Marionette = require('backbone.marionette');
+  var escapeHtml = require('./helpers/escape_html');
+  var formatDate = require('./helpers/format_date');
+  var Matches = require('../collections/matches');
+
+  function pickHighlight() {
+    var coll = new Matches();
+    try { coll.fetch(); } catch (e) { return null; }
+    var live = coll.live();
+    if (live.length > 0) {
+      return { match: live[0], label: 'AO VIVO' };
+    }
+    var pending = coll.filter(function (m) {
+      var s = m.get('status');
+      return s === 'scheduled' || s === 'postponed';
+    });
+    if (pending.length > 0) {
+      pending.sort(function (a, b) {
+        var ka = new Date(a.get('kickoff') || 0).getTime();
+        var kb = new Date(b.get('kickoff') || 0).getTime();
+        return ka - kb;
+      });
+      return { match: pending[0], label: 'Próxima' };
+    }
+    return null;
+  }
+
+  function highlightHtml() {
+    var highlight = pickHighlight();
+    if (!highlight) {
+      return '<p class="text-muted">Nenhuma partida agendada ainda.</p>';
+    }
+    var m = highlight.match;
+    return '' +
+      '<p class="text-muted highlight-label">' + highlight.label + '</p>' +
+      '<h4>' +
+        '<a href="#/partidas/' + encodeURIComponent(m.id) + '">' +
+          escapeHtml(m.get('home')) + ' × ' + escapeHtml(m.get('away')) +
+        '</a>' +
+      '</h4>' +
+      '<p class="text-muted">' +
+        escapeHtml(formatDate.formatDateTime(m.get('kickoff')) || '—') +
+        (m.get('stadium') ? ' · ' + escapeHtml(m.get('stadium')) : '') +
+      '</p>';
+  }
 
   return Marionette.ItemView.extend({
 
@@ -32,13 +76,12 @@ module.exports = (function () {
             '</div></div>' +
           '</div>' +
           '<div class="col-md-4">' +
-            '<div class="panel panel-default"><div class="panel-body">' +
-              '<h3>Criar campeonato</h3>' +
-              '<p>Defina formato, times e a data da primeira rodada.</p>' +
-              '<a class="btn btn-success" href="#/admin/campeonatos/novo">' +
-                'Novo campeonato' +
-              '</a>' +
-            '</div></div>' +
+            '<div class="panel panel-default home-highlight">' +
+              '<div class="panel-body">' +
+                '<h3>Partida em destaque</h3>' +
+                highlightHtml() +
+              '</div>' +
+            '</div>' +
           '</div>' +
         '</div>';
     }
