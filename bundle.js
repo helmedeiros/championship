@@ -18948,9 +18948,16 @@ module.exports = (function () {
 
     className: 'match-show',
 
-    template: function () {
+    template: function (data) {
+      var scoreboardHref = data.id ?
+        '#/admin/partidas/' + encodeURIComponent(data.id) + '/scoreboard' :
+        '#';
       return '' +
         '<section class="match-header-region"></section>' +
+        '<div class="match-toolbar">' +
+          '<a class="btn btn-sm btn-default match-open-scorer" href="' +
+            scoreboardHref + '">Abrir scoreboard</a>' +
+        '</div>' +
         '<div class="row">' +
           '<div class="col-md-8">' +
             '<h3>Linha do tempo</h3>' +
@@ -18961,8 +18968,15 @@ module.exports = (function () {
             '<p class="text-muted match-meta">' +
               'Campeonato: <strong class="match-championship"></strong>' +
             '</p>' +
+            '<p class="text-muted match-events-count">' +
+              '<strong class="events-count-num"></strong> evento(s) registrado(s)' +
+            '</p>' +
           '</div>' +
         '</div>';
+    },
+
+    serializeData: function () {
+      return { id: this.model.id };
     },
 
     regions: {
@@ -18988,6 +19002,7 @@ module.exports = (function () {
 
     onRender: function () {
       this.$('.match-championship').text(this.model.get('championship') || '—');
+      this.$('.events-count-num').text(this.matchEvents.length);
     },
 
     onShow: function () {
