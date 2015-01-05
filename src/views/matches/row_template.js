@@ -3,14 +3,7 @@ module.exports = (function () {
 
   var escapeHtml = require('../helpers/escape_html');
   var formatDate = require('../helpers/format_date');
-
-  var STATUS_LABEL = {
-    scheduled: '',
-    live: 'AO VIVO',
-    half: 'INTERVALO',
-    finished: 'ENCERRADO',
-    postponed: 'ADIADA'
-  };
+  var STATUS_LABEL = require('./status_labels').SHORT;
 
   function scoreBlock(data) {
     if (data.status === 'scheduled' || data.status === 'postponed') {

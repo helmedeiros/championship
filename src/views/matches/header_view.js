@@ -3,14 +3,7 @@ module.exports = (function () {
 
   var Marionette = require('backbone.marionette');
   var escapeHtml = require('../helpers/escape_html');
-
-  var STATUS_LABEL = {
-    scheduled: 'A iniciar',
-    live: 'EM ANDAMENTO',
-    half: 'INTERVALO',
-    finished: 'ENCERRADO',
-    postponed: 'ADIADA'
-  };
+  var STATUS_LABEL = require('./status_labels').LONG;
 
   return Marionette.ItemView.extend({
 
