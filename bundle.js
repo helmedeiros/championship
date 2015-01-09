@@ -16898,7 +16898,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":15,"../collections/teams":18,"../models/championship":21,"../models/match":22,"../models/team":28,"../persistence/base_model":30,"../views/championships/form_view":40,"../views/championships/list_view":41,"../views/championships/show_view":43,"../views/home_view":47,"../views/matches/scorer_view":50,"../views/matches/show_view":51,"../views/teams/form_view":56,"../views/teams/list_view":58,"./router":10}],13:[function(require,module,exports){
+},{"../collections/championships":15,"../collections/teams":18,"../models/championship":21,"../models/match":22,"../models/team":28,"../persistence/base_model":30,"../views/championships/form_view":41,"../views/championships/list_view":42,"../views/championships/show_view":44,"../views/home_view":48,"../views/matches/scorer_view":51,"../views/matches/show_view":52,"../views/teams/form_view":58,"../views/teams/list_view":60,"./router":10}],13:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17272,7 +17272,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":30,"./persistence/local_storage_adapter":31,"./views/widgets/flash_view":61,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],21:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":30,"./persistence/local_storage_adapter":31,"./views/widgets/flash_view":63,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],21:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18160,6 +18160,50 @@ module.exports = (function () {
 module.exports = (function () {
   'use strict';
 
+  // Estatísticas agregadas a partir dos eventos de uma partida.
+  // Inputs aceitos: array de objetos { type, ... } ou Backbone.Collection.
+
+  function asArray(events) {
+    if (!events) { return []; }
+    if (typeof events.toArray === 'function') { return events.toArray(); }
+    return events;
+  }
+
+  function getType(ev) {
+    return ev && typeof ev.get === 'function' ? ev.get('type') : (ev || {}).type;
+  }
+
+  function summarize(events) {
+    var list = asArray(events);
+    var counts = {
+      goal: 0, own_goal: 0,
+      yellow: 0, red: 0,
+      sub: 0, var: 0, comment: 0,
+      kickoff: 0, half_time: 0, full_time: 0
+    };
+    list.forEach(function (ev) {
+      var t = getType(ev);
+      if (counts.hasOwnProperty(t)) { counts[t] = counts[t] + 1; }
+    });
+    return {
+      counts: counts,
+      goals: counts.goal + counts.own_goal,
+      cards: counts.yellow + counts.red,
+      substitutions: counts.sub,
+      commentsOnly: counts.comment,
+      ticks: counts.kickoff + counts.half_time + counts.full_time
+    };
+  }
+
+  return {
+    summarize: summarize
+  };
+}());
+
+},{}],39:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
   var Marionette = require('backbone.marionette');
 
   return Marionette.ItemView.extend({
@@ -18171,7 +18215,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],39:[function(require,module,exports){
+},{"backbone.marionette":2}],40:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18247,7 +18291,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":45}],40:[function(require,module,exports){
+},{"../helpers/escape_html":46}],41:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18325,7 +18369,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":45,"./form_template":39,"backbone.marionette":2}],41:[function(require,module,exports){
+},{"../helpers/escape_html":46,"./form_template":40,"backbone.marionette":2}],42:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18361,7 +18405,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":38,"./row_view":42,"backbone.marionette":2}],42:[function(require,module,exports){
+},{"./empty_view":39,"./row_view":43,"backbone.marionette":2}],43:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18396,7 +18440,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":45,"backbone.marionette":2}],43:[function(require,module,exports){
+},{"../helpers/escape_html":46,"backbone.marionette":2}],44:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18476,7 +18520,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table_view":44,"../helpers/escape_html":45,"backbone.marionette":2}],44:[function(require,module,exports){
+},{"../classification/table_view":45,"../helpers/escape_html":46,"backbone.marionette":2}],45:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18550,7 +18594,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":45,"backbone.marionette":2}],45:[function(require,module,exports){
+},{"../helpers/escape_html":46,"backbone.marionette":2}],46:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18564,7 +18608,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],46:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18603,7 +18647,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],47:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18695,7 +18739,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../collections/matches":17,"./helpers/escape_html":45,"./helpers/format_date":46,"backbone.marionette":2}],48:[function(require,module,exports){
+},{"../collections/matches":17,"./helpers/escape_html":46,"./helpers/format_date":47,"backbone.marionette":2}],49:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18750,7 +18794,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":45,"backbone.marionette":2}],49:[function(require,module,exports){
+},{"../helpers/escape_html":46,"backbone.marionette":2}],50:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18786,7 +18830,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":45,"./status_labels":52,"backbone.marionette":2}],50:[function(require,module,exports){
+},{"../helpers/escape_html":46,"./status_labels":54,"backbone.marionette":2}],51:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18926,7 +18970,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../models/match_event":23,"../../persistence/base_model":30,"../helpers/escape_html":45,"backbone.marionette":2}],51:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../models/match_event":23,"../../persistence/base_model":30,"../helpers/escape_html":46,"backbone.marionette":2}],52:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18934,6 +18978,7 @@ module.exports = (function () {
   var MatchEvents = require('../../collections/match_events');
   var HeaderView = require('./header_view');
   var TimelineView = require('./timeline_view');
+  var StatsView = require('./stats_view');
   var BaseModel = require('../../persistence/base_model');
   var crossTab = require('../../live/cross_tab');
 
@@ -18951,21 +18996,25 @@ module.exports = (function () {
           '<a class="btn btn-sm btn-default match-open-scorer" href="' +
             scoreboardHref + '">Abrir scoreboard</a>' +
         '</div>' +
-        '<div class="row">' +
-          '<div class="col-md-8">' +
-            '<h3>Linha do tempo</h3>' +
+        '<ul class="nav nav-tabs match-tabs">' +
+          '<li class="active" data-tab="timeline"><a href="#">Linha do tempo</a></li>' +
+          '<li data-tab="stats"><a href="#">Estatísticas</a></li>' +
+        '</ul>' +
+        '<div class="tab-content match-tab-content">' +
+          '<div class="tab-pane active" data-pane="timeline">' +
             '<section class="match-timeline-region"></section>' +
           '</div>' +
-          '<div class="col-md-4">' +
-            '<h3>Resumo</h3>' +
-            '<p class="text-muted match-meta">' +
-              'Campeonato: <strong class="match-championship"></strong>' +
-            '</p>' +
-            '<p class="text-muted match-events-count">' +
-              '<strong class="events-count-num"></strong> evento(s) registrado(s)' +
-            '</p>' +
+          '<div class="tab-pane" data-pane="stats" style="display:none">' +
+            '<section class="match-stats-region"></section>' +
           '</div>' +
-        '</div>';
+        '</div>' +
+        '<aside class="match-meta">' +
+          '<p class="text-muted">Campeonato: ' +
+            '<strong class="match-championship"></strong></p>' +
+          '<p class="text-muted">' +
+            '<strong class="events-count-num"></strong> evento(s) registrado(s)' +
+          '</p>' +
+        '</aside>';
     },
 
     serializeData: function () {
@@ -18974,12 +19023,15 @@ module.exports = (function () {
 
     regions: {
       headerRegion: '.match-header-region',
-      timelineRegion: '.match-timeline-region'
+      timelineRegion: '.match-timeline-region',
+      statsRegion: '.match-stats-region'
+    },
+
+    events: {
+      'click .match-tabs li': 'onTabClick'
     },
 
     initialize: function (options) {
-      // Cuidado: não use `this.events` — Backbone.View já reserva esse nome
-      // para o hash de eventos do DOM.
       this.matchEvents = (options && options.matchEvents) || this._loadEvents();
     },
 
@@ -19003,7 +19055,19 @@ module.exports = (function () {
       this.getRegion('timelineRegion').show(
         new TimelineView({ collection: this.matchEvents })
       );
+      this.getRegion('statsRegion').show(
+        new StatsView({ collection: this.matchEvents, matchEvents: this.matchEvents })
+      );
       this._bindLive();
+    },
+
+    onTabClick: function (e) {
+      if (e && e.preventDefault) { e.preventDefault(); }
+      var tab = e.currentTarget.getAttribute('data-tab');
+      this.$('.match-tabs li').removeClass('active');
+      this.$('.match-tabs li[data-tab="' + tab + '"]').addClass('active');
+      this.$('.tab-pane').hide().removeClass('active');
+      this.$('.tab-pane[data-pane="' + tab + '"]').show().addClass('active');
     },
 
     _bindLive: function () {
@@ -19024,7 +19088,60 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../live/cross_tab":19,"../../persistence/base_model":30,"./header_view":49,"./timeline_view":53,"backbone.marionette":2}],52:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../live/cross_tab":19,"../../persistence/base_model":30,"./header_view":50,"./stats_view":53,"./timeline_view":55,"backbone.marionette":2}],53:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var matchStats = require('../../stats/match_stats');
+
+  return Marionette.ItemView.extend({
+
+    className: 'match-stats',
+
+    initialize: function (options) {
+      this.matchEvents = options && options.matchEvents;
+    },
+
+    template: function (data) {
+      var c = data.counts;
+      function row(label, value) {
+        return '<tr><td>' + label + '</td><td class="text-right"><strong>' +
+               value + '</strong></td></tr>';
+      }
+      return '' +
+        '<table class="table table-striped stats-summary">' +
+          '<tbody>' +
+            row('Gols',                   c.goal) +
+            row('Gols contra',            c.own_goal) +
+            row('Cartões amarelos',       c.yellow) +
+            row('Cartões vermelhos',      c.red) +
+            row('Substituições',          c.sub) +
+            row('Consultas ao VAR',       c.var) +
+            row('Comentários ao vivo',    c.comment) +
+            row('Marcos da partida',
+                c.kickoff + c.half_time + c.full_time) +
+          '</tbody>' +
+        '</table>';
+    },
+
+    serializeData: function () {
+      return matchStats.summarize(this.matchEvents);
+    },
+
+    initialize_with_collection_listener: function () {
+      // Re-render quando coleção mudar (listener separado é o jeito mais
+      // 2014 de fazer; Marionette `collectionEvents` cobre a maior parte).
+    },
+
+    collectionEvents: {
+      'add remove reset change': 'render'
+    }
+
+  });
+}());
+
+},{"../../stats/match_stats":38,"backbone.marionette":2}],54:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19046,7 +19163,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],53:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19067,7 +19184,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./event_item_view":48,"backbone.marionette":2}],54:[function(require,module,exports){
+},{"./event_item_view":49,"backbone.marionette":2}],56:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19082,7 +19199,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],55:[function(require,module,exports){
+},{"backbone.marionette":2}],57:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19113,7 +19230,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":45}],56:[function(require,module,exports){
+},{"../helpers/escape_html":46}],58:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19169,7 +19286,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":45,"./form_template":55,"backbone.marionette":2}],57:[function(require,module,exports){
+},{"../helpers/escape_html":46,"./form_template":57,"backbone.marionette":2}],59:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19193,7 +19310,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],58:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19215,7 +19332,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":54,"./list_template":57,"./row_view":60,"backbone.marionette":2}],59:[function(require,module,exports){
+},{"./empty_view":56,"./list_template":59,"./row_view":62,"backbone.marionette":2}],61:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19239,7 +19356,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":45}],60:[function(require,module,exports){
+},{"../helpers/escape_html":46}],62:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19268,7 +19385,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":59,"backbone.marionette":2}],61:[function(require,module,exports){
+},{"./row_template":61,"backbone.marionette":2}],63:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19331,4 +19448,4 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":45,"backbone.marionette":2}]},{},[20]);
+},{"../helpers/escape_html":46,"backbone.marionette":2}]},{},[20]);
