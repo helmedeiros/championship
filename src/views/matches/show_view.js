@@ -5,6 +5,7 @@ module.exports = (function () {
   var MatchEvents = require('../../collections/match_events');
   var HeaderView = require('./header_view');
   var TimelineView = require('./timeline_view');
+  var StatsView = require('./stats_view');
   var BaseModel = require('../../persistence/base_model');
   var crossTab = require('../../live/cross_tab');
 
@@ -22,21 +23,25 @@ module.exports = (function () {
           '<a class="btn btn-sm btn-default match-open-scorer" href="' +
             scoreboardHref + '">Abrir scoreboard</a>' +
         '</div>' +
-        '<div class="row">' +
-          '<div class="col-md-8">' +
-            '<h3>Linha do tempo</h3>' +
+        '<ul class="nav nav-tabs match-tabs">' +
+          '<li class="active" data-tab="timeline"><a href="#">Linha do tempo</a></li>' +
+          '<li data-tab="stats"><a href="#">Estatísticas</a></li>' +
+        '</ul>' +
+        '<div class="tab-content match-tab-content">' +
+          '<div class="tab-pane active" data-pane="timeline">' +
             '<section class="match-timeline-region"></section>' +
           '</div>' +
-          '<div class="col-md-4">' +
-            '<h3>Resumo</h3>' +
-            '<p class="text-muted match-meta">' +
-              'Campeonato: <strong class="match-championship"></strong>' +
-            '</p>' +
-            '<p class="text-muted match-events-count">' +
-              '<strong class="events-count-num"></strong> evento(s) registrado(s)' +
-            '</p>' +
+          '<div class="tab-pane" data-pane="stats" style="display:none">' +
+            '<section class="match-stats-region"></section>' +
           '</div>' +
-        '</div>';
+        '</div>' +
+        '<aside class="match-meta">' +
+          '<p class="text-muted">Campeonato: ' +
+            '<strong class="match-championship"></strong></p>' +
+          '<p class="text-muted">' +
+            '<strong class="events-count-num"></strong> evento(s) registrado(s)' +
+          '</p>' +
+        '</aside>';
     },
 
     serializeData: function () {
@@ -45,12 +50,15 @@ module.exports = (function () {
 
     regions: {
       headerRegion: '.match-header-region',
-      timelineRegion: '.match-timeline-region'
+      timelineRegion: '.match-timeline-region',
+      statsRegion: '.match-stats-region'
+    },
+
+    events: {
+      'click .match-tabs li': 'onTabClick'
     },
 
     initialize: function (options) {
-      // Cuidado: não use `this.events` — Backbone.View já reserva esse nome
-      // para o hash de eventos do DOM.
       this.matchEvents = (options && options.matchEvents) || this._loadEvents();
     },
 
@@ -74,7 +82,19 @@ module.exports = (function () {
       this.getRegion('timelineRegion').show(
         new TimelineView({ collection: this.matchEvents })
       );
+      this.getRegion('statsRegion').show(
+        new StatsView({ collection: this.matchEvents, matchEvents: this.matchEvents })
+      );
       this._bindLive();
+    },
+
+    onTabClick: function (e) {
+      if (e && e.preventDefault) { e.preventDefault(); }
+      var tab = e.currentTarget.getAttribute('data-tab');
+      this.$('.match-tabs li').removeClass('active');
+      this.$('.match-tabs li[data-tab="' + tab + '"]').addClass('active');
+      this.$('.tab-pane').hide().removeClass('active');
+      this.$('.tab-pane[data-pane="' + tab + '"]').show().addClass('active');
     },
 
     _bindLive: function () {
