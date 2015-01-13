@@ -16898,7 +16898,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":15,"../collections/teams":18,"../models/championship":21,"../models/match":22,"../models/team":28,"../persistence/base_model":30,"../views/championships/form_view":41,"../views/championships/list_view":42,"../views/championships/show_view":44,"../views/home_view":48,"../views/matches/scorer_view":51,"../views/matches/show_view":52,"../views/teams/form_view":58,"../views/teams/list_view":60,"./router":10}],13:[function(require,module,exports){
+},{"../collections/championships":15,"../collections/teams":18,"../models/championship":22,"../models/match":23,"../models/team":29,"../persistence/base_model":31,"../views/championships/form_view":42,"../views/championships/list_view":43,"../views/championships/show_view":45,"../views/home_view":49,"../views/matches/scorer_view":52,"../views/matches/show_view":53,"../views/teams/form_view":59,"../views/teams/list_view":61,"./router":10}],13:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17053,7 +17053,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/championship":21,"../persistence/base_collection":29}],16:[function(require,module,exports){
+},{"../models/championship":22,"../persistence/base_collection":30}],16:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17087,7 +17087,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match_event":23,"../persistence/base_collection":29}],17:[function(require,module,exports){
+},{"../models/match_event":24,"../persistence/base_collection":30}],17:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17129,7 +17129,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match":22,"../persistence/base_collection":29}],18:[function(require,module,exports){
+},{"../models/match":23,"../persistence/base_collection":30}],18:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17142,7 +17142,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/team":28,"../persistence/base_collection":29}],19:[function(require,module,exports){
+},{"../models/team":29,"../persistence/base_collection":30}],19:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17177,6 +17177,105 @@ module.exports = (function () {
 }());
 
 },{}],20:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // Replay de eventos no tempo de jogo. Cada minuto de jogo dura
+  // minuteDurationMs/velocidade milissegundos no tempo real.
+
+  function ordered(events) {
+    return events.slice().sort(function (a, b) {
+      var ha = (a.half || 1) * 1000 + (a.minute || 0);
+      var hb = (b.half || 1) * 1000 + (b.minute || 0);
+      return ha - hb;
+    });
+  }
+
+  function noop() {}
+
+  function resolveTimers(opts) {
+    var setT = opts.setTimeout ||
+      (typeof setTimeout !== 'undefined' ? setTimeout : null);
+    var clearT = opts.clearTimeout ||
+      (typeof clearTimeout !== 'undefined' ? clearTimeout : null);
+    if (!setT) {
+      throw new Error('setTimeout indisponível: passe options.setTimeout');
+    }
+    return { setT: setT, clearT: clearT };
+  }
+
+  function resolveOptions(opts) {
+    var speed = opts.speed || 1;
+    return {
+      minuteMs: (opts.minuteDurationMs || 1000) / speed,
+      onEvent: opts.onEvent || noop,
+      onTick: opts.onTick || noop,
+      onComplete: opts.onComplete || noop
+    };
+  }
+
+  function play(events, options) {
+    var opts = options || {};
+    var cfg = resolveOptions(opts);
+    var timers = resolveTimers(opts);
+    var queue = ordered(events);
+    var idx = 0;
+    var startedAt = 0;
+    var elapsed = 0;
+    var timer = null;
+    var paused = false;
+
+    function targetFor(ev) {
+      return ((ev.half - 1) * 45 + ev.minute) * cfg.minuteMs;
+    }
+
+    function schedule() {
+      if (idx >= queue.length) { cfg.onComplete(); return; }
+      var next = queue[idx];
+      var delay = Math.max(0, targetFor(next) - elapsed);
+      startedAt = Date.now();
+      timer = timers.setT(function () {
+        elapsed = elapsed + (Date.now() - startedAt);
+        cfg.onEvent(next);
+        cfg.onTick({ minute: next.minute, half: next.half });
+        idx = idx + 1;
+        if (!paused) { schedule(); }
+      }, delay);
+    }
+
+    schedule();
+
+    return {
+      stop: function () {
+        if (timer && timers.clearT) { timers.clearT(timer); }
+        timer = null;
+        idx = queue.length;
+      },
+      pause: function () {
+        if (timer && timers.clearT) { timers.clearT(timer); }
+        timer = null;
+        paused = true;
+        elapsed = elapsed + (Date.now() - startedAt);
+      },
+      resume: function () {
+        paused = false;
+        schedule();
+      },
+      state: function () {
+        return {
+          paused: paused,
+          finished: idx >= queue.length,
+          totalEvents: queue.length,
+          index: idx
+        };
+      }
+    };
+  }
+
+  return { play: play };
+}());
+
+},{}],21:[function(require,module,exports){
 (function (process){
 /* global process */
 (function () {
@@ -17272,7 +17371,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":30,"./persistence/local_storage_adapter":31,"./views/widgets/flash_view":63,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],21:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":31,"./persistence/local_storage_adapter":32,"./views/widgets/flash_view":64,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],22:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17368,7 +17467,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table":13,"../collections/matches":17,"../persistence/base_model":30,"../scheduling/scheduler":37,"./messages/championship":24}],22:[function(require,module,exports){
+},{"../classification/table":13,"../collections/matches":17,"../persistence/base_model":31,"../scheduling/scheduler":38,"./messages/championship":25}],23:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17426,7 +17525,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":30,"./messages/match":25}],23:[function(require,module,exports){
+},{"../persistence/base_model":31,"./messages/match":26}],24:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17489,7 +17588,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":30,"./messages/match_event":26}],24:[function(require,module,exports){
+},{"../persistence/base_model":31,"./messages/match_event":27}],25:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17500,7 +17599,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17511,7 +17610,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17523,7 +17622,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17532,7 +17631,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17561,7 +17660,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":30,"./messages/team":27}],29:[function(require,module,exports){
+},{"../persistence/base_model":31,"./messages/team":28}],30:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17601,7 +17700,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./base_model":30,"backbone":4}],30:[function(require,module,exports){
+},{"./base_model":31,"backbone":4}],31:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17670,7 +17769,7 @@ module.exports = (function () {
   return BaseModel;
 }());
 
-},{"backbone":4}],31:[function(require,module,exports){
+},{"backbone":4}],32:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17783,7 +17882,7 @@ module.exports = (function () {
   return LocalStorageAdapter;
 }());
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17842,7 +17941,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],33:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17866,7 +17965,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{"./round_robin":36}],34:[function(require,module,exports){
+},{"./round_robin":37}],35:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17940,7 +18039,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./round_robin":36}],35:[function(require,module,exports){
+},{"./round_robin":37}],36:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18003,7 +18102,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{}],36:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18088,7 +18187,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],37:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18156,7 +18255,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./calendar":32,"./double_round_robin":33,"./groups":34,"./knockout":35,"./round_robin":36}],38:[function(require,module,exports){
+},{"./calendar":33,"./double_round_robin":34,"./groups":35,"./knockout":36,"./round_robin":37}],39:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18200,7 +18299,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],39:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18215,7 +18314,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],40:[function(require,module,exports){
+},{"backbone.marionette":2}],41:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18291,7 +18390,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":46}],41:[function(require,module,exports){
+},{"../helpers/escape_html":47}],42:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18369,7 +18468,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":46,"./form_template":40,"backbone.marionette":2}],42:[function(require,module,exports){
+},{"../helpers/escape_html":47,"./form_template":41,"backbone.marionette":2}],43:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18405,7 +18504,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":39,"./row_view":43,"backbone.marionette":2}],43:[function(require,module,exports){
+},{"./empty_view":40,"./row_view":44,"backbone.marionette":2}],44:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18440,7 +18539,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":46,"backbone.marionette":2}],44:[function(require,module,exports){
+},{"../helpers/escape_html":47,"backbone.marionette":2}],45:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18520,7 +18619,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table_view":45,"../helpers/escape_html":46,"backbone.marionette":2}],45:[function(require,module,exports){
+},{"../classification/table_view":46,"../helpers/escape_html":47,"backbone.marionette":2}],46:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18594,7 +18693,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":46,"backbone.marionette":2}],46:[function(require,module,exports){
+},{"../helpers/escape_html":47,"backbone.marionette":2}],47:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18608,7 +18707,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],47:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18647,7 +18746,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],48:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18739,7 +18838,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../collections/matches":17,"./helpers/escape_html":46,"./helpers/format_date":47,"backbone.marionette":2}],49:[function(require,module,exports){
+},{"../collections/matches":17,"./helpers/escape_html":47,"./helpers/format_date":48,"backbone.marionette":2}],50:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18794,7 +18893,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":46,"backbone.marionette":2}],50:[function(require,module,exports){
+},{"../helpers/escape_html":47,"backbone.marionette":2}],51:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18830,7 +18929,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":46,"./status_labels":54,"backbone.marionette":2}],51:[function(require,module,exports){
+},{"../helpers/escape_html":47,"./status_labels":55,"backbone.marionette":2}],52:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18970,7 +19069,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../models/match_event":23,"../../persistence/base_model":30,"../helpers/escape_html":46,"backbone.marionette":2}],52:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../models/match_event":24,"../../persistence/base_model":31,"../helpers/escape_html":47,"backbone.marionette":2}],53:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18981,6 +19080,7 @@ module.exports = (function () {
   var StatsView = require('./stats_view');
   var BaseModel = require('../../persistence/base_model');
   var crossTab = require('../../live/cross_tab');
+  var replay = require('../../live/replay');
 
   return Marionette.LayoutView.extend({
 
@@ -18994,7 +19094,11 @@ module.exports = (function () {
         '<section class="match-header-region"></section>' +
         '<div class="match-toolbar">' +
           '<a class="btn btn-sm btn-default match-open-scorer" href="' +
-            scoreboardHref + '">Abrir scoreboard</a>' +
+            scoreboardHref + '">Abrir scoreboard</a> ' +
+          '<button class="btn btn-sm btn-info match-replay" ' +
+            'data-speed="4">Reviver (4×)</button> ' +
+          '<button class="btn btn-sm btn-info match-replay" ' +
+            'data-speed="16">Reviver (16×)</button>' +
         '</div>' +
         '<ul class="nav nav-tabs match-tabs">' +
           '<li class="active" data-tab="timeline"><a href="#">Linha do tempo</a></li>' +
@@ -19028,7 +19132,8 @@ module.exports = (function () {
     },
 
     events: {
-      'click .match-tabs li': 'onTabClick'
+      'click .match-tabs li': 'onTabClick',
+      'click .match-replay':  'onReplay'
     },
 
     initialize: function (options) {
@@ -19070,6 +19175,21 @@ module.exports = (function () {
       this.$('.tab-pane[data-pane="' + tab + '"]').show().addClass('active');
     },
 
+    onReplay: function (e) {
+      if (e && e.preventDefault) { e.preventDefault(); }
+      var speed = parseInt(e.currentTarget.getAttribute('data-speed'), 10) || 4;
+      if (this._replayCtl) { this._replayCtl.stop(); }
+      var snapshot = this.matchEvents.toJSON();
+      this.matchEvents.reset([]);
+      var view = this;
+      this._replayCtl = replay.play(snapshot, {
+        speed: speed,
+        minuteDurationMs: 1000,
+        onEvent: function (ev) { view.matchEvents.add(ev); },
+        onComplete: function () { view._replayCtl = null; }
+      });
+    },
+
     _bindLive: function () {
       var view = this;
       var win = typeof window !== 'undefined' ? window : null;
@@ -19083,12 +19203,13 @@ module.exports = (function () {
 
     onDestroy: function () {
       if (this._unbindLive) { this._unbindLive(); }
+      if (this._replayCtl) { this._replayCtl.stop(); }
     }
 
   });
 }());
 
-},{"../../collections/match_events":16,"../../live/cross_tab":19,"../../persistence/base_model":30,"./header_view":50,"./stats_view":53,"./timeline_view":55,"backbone.marionette":2}],53:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../live/cross_tab":19,"../../live/replay":20,"../../persistence/base_model":31,"./header_view":51,"./stats_view":54,"./timeline_view":56,"backbone.marionette":2}],54:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19141,7 +19262,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/match_stats":38,"backbone.marionette":2}],54:[function(require,module,exports){
+},{"../../stats/match_stats":39,"backbone.marionette":2}],55:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19163,7 +19284,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],55:[function(require,module,exports){
+},{}],56:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19184,7 +19305,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./event_item_view":49,"backbone.marionette":2}],56:[function(require,module,exports){
+},{"./event_item_view":50,"backbone.marionette":2}],57:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19199,7 +19320,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],57:[function(require,module,exports){
+},{"backbone.marionette":2}],58:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19230,7 +19351,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":46}],58:[function(require,module,exports){
+},{"../helpers/escape_html":47}],59:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19286,7 +19407,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":46,"./form_template":57,"backbone.marionette":2}],59:[function(require,module,exports){
+},{"../helpers/escape_html":47,"./form_template":58,"backbone.marionette":2}],60:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19310,7 +19431,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],60:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19332,7 +19453,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":56,"./list_template":59,"./row_view":62,"backbone.marionette":2}],61:[function(require,module,exports){
+},{"./empty_view":57,"./list_template":60,"./row_view":63,"backbone.marionette":2}],62:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19356,7 +19477,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":46}],62:[function(require,module,exports){
+},{"../helpers/escape_html":47}],63:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19385,7 +19506,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":61,"backbone.marionette":2}],63:[function(require,module,exports){
+},{"./row_template":62,"backbone.marionette":2}],64:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19448,4 +19569,4 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":46,"backbone.marionette":2}]},{},[20]);
+},{"../helpers/escape_html":47,"backbone.marionette":2}]},{},[21]);
