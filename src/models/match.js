@@ -28,7 +28,10 @@ module.exports = (function () {
       referee: '',
       status: 'scheduled',
       homeScore: 0,
-      awayScore: 0
+      awayScore: 0,
+      round: null,
+      group: null,
+      championship: null
     },
 
     validate: function (attrs) {

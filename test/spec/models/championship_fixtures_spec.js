@@ -42,6 +42,28 @@ describe('models/Championship.createFixtures', function () {
     expect(champ.matches()).to.have.length(1);
   });
 
+  it('grava número da rodada em cada partida (formato liga)', function () {
+    var champ = new Championship({
+      id: 'r', name: 'R', season: 2014, format: 'league'
+    });
+    champ.createFixtures(['a', 'b', 'c', 'd']);
+    var rounds = storage.list('matches').map(function (m) { return m.round; });
+    expect(Math.min.apply(null, rounds)).to.equal(1);
+    expect(Math.max.apply(null, rounds)).to.equal(3);
+  });
+
+  it('grava nome do grupo em cada partida (formato groups-knockout)', function () {
+    var teams = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    var champ = new Championship({
+      id: 'gk', name: 'GK', season: 2014, format: 'groups-knockout'
+    });
+    champ.createFixtures(teams, { groupCount: 2 });
+    var matches = storage.list('matches');
+    var groups = matches.map(function (m) { return m.group; });
+    expect(groups).to.include('Grupo A');
+    expect(groups).to.include('Grupo B');
+  });
+
 });
 
 describe('models/Championship.classification', function () {
