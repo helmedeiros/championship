@@ -17424,29 +17424,31 @@ module.exports = (function () {
       var schedule = scheduler.scheduleFor(this.get('format'), teamIds, opts);
       var champId = this.id || this.cid;
       var saved = [];
-      var pushRound = function (matches) {
+      function pushRound(matches, roundIdx, groupName) {
         matches.forEach(function (m) {
           saved.push(storage.create('matches', {
             home: m.home, away: m.away,
             kickoff: m.kickoff || null,
             stadium: m.stadium || '',
             championship: champId,
+            round: roundIdx + 1,
+            group: groupName || null,
             status: 'scheduled',
             homeScore: 0, awayScore: 0
           }));
         });
-      };
+      }
       if (schedule.rounds) {
-        schedule.rounds.forEach(pushRound);
+        schedule.rounds.forEach(function (r, i) { pushRound(r, i); });
       }
       if (schedule.groups) {
         schedule.groups.forEach(function (group) {
-          group.rounds.forEach(pushRound);
+          group.rounds.forEach(function (r, i) { pushRound(r, i, group.name); });
         });
       }
       if (schedule.bracket) {
-        schedule.bracket.rounds.forEach(function (round) {
-          pushRound(round.matches);
+        schedule.bracket.rounds.forEach(function (round, i) {
+          pushRound(round.matches, i, round.label);
         });
       }
       return saved;
@@ -17498,7 +17500,10 @@ module.exports = (function () {
       referee: '',
       status: 'scheduled',
       homeScore: 0,
-      awayScore: 0
+      awayScore: 0,
+      round: null,
+      group: null,
+      championship: null
     },
 
     validate: function (attrs) {
