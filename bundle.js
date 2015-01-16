@@ -17124,6 +17124,25 @@ module.exports = (function () {
       return this.filter(function (m) {
         return m.get('home') === teamId || m.get('away') === teamId;
       });
+    },
+
+    byRound: function (championshipId, roundNumber) {
+      return this.filter(function (m) {
+        return m.get('championship') === championshipId &&
+               m.get('round') === roundNumber;
+      });
+    },
+
+    rounds: function (championshipId) {
+      var seen = {};
+      this.each(function (m) {
+        if (m.get('championship') === championshipId && m.get('round')) {
+          seen[m.get('round')] = true;
+        }
+      });
+      return Object.keys(seen).map(function (n) { return parseInt(n, 10); }).sort(
+        function (a, b) { return a - b; }
+      );
     }
 
   });
