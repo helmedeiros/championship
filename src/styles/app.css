@@ -72,3 +72,62 @@ body {
 .player-photo {
   border-radius: 50%;
 }
+
+.badge.status-live {
+  background-color: #c0392b;
+  animation: pulse 1.4s infinite;
+}
+
+@keyframes pulse {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.55; }
+  100% { opacity: 1; }
+}
+
+.badge.status-half {
+  background-color: #f39c12;
+}
+
+.badge.status-finished {
+  background-color: #7f8c8d;
+}
+
+.match-scoreboard {
+  font-size: 28px;
+  text-align: center;
+  margin: 10px 0;
+}
+
+.match-scoreboard .score-home,
+.match-scoreboard .score-away {
+  font-size: 40px;
+  font-weight: bold;
+  margin: 0 12px;
+}
+
+.match-status {
+  text-align: center;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.event-timeline {
+  border-left: 2px solid #ddd;
+  padding-left: 12px;
+}
+
+.event-item {
+  margin: 6px 0;
+}
+
+.event-minute {
+  display: inline-block;
+  width: 40px;
+  color: #c0392b;
+  font-weight: bold;
+}
+
+.event-icon {
+  display: inline-block;
+  width: 24px;
+}
