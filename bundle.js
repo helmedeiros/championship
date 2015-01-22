@@ -18985,6 +18985,13 @@ module.exports = (function () {
           '<span class="team-away">' + escapeHtml(data.away) + '</span> ' +
           '<span class="badge status-' + data.status + '">' + data.status + '</span>' +
         '</div>' +
+        '<div class="scorer-clock">' +
+          '<button class="btn btn-default btn-xs tick-minute">+1 min</button> ' +
+          '<span class="minute-display">' +
+            escapeHtml(data.halfCounter) + 'T · ' +
+            escapeHtml(data.minuteCounter) + '\'' +
+          '</span>' +
+        '</div>' +
         '<div class="scorer-status btn-group">' +
           '<button class="btn btn-default" data-status="live">Iniciar 1T</button>' +
           '<button class="btn btn-default" data-status="half">Intervalo</button>' +
@@ -19020,8 +19027,26 @@ module.exports = (function () {
       'click .yellow-away': 'yellowAway',
       'click .red-home':    'redHome',
       'click .red-away':    'redAway',
+      'click .tick-minute': 'tickMinute',
       'click .comment-send': 'sendComment',
       'keypress .comment-input': 'commentKey'
+    },
+
+    serializeData: function () {
+      return {
+        home: this.model.get('home'),
+        away: this.model.get('away'),
+        homeScore: this.model.get('homeScore'),
+        awayScore: this.model.get('awayScore'),
+        status: this.model.get('status'),
+        minuteCounter: this.minuteCounter,
+        halfCounter: this.halfCounter
+      };
+    },
+
+    tickMinute: function () {
+      this.minuteCounter = this.minuteCounter + 1;
+      this.render();
     },
 
     modelEvents: {
