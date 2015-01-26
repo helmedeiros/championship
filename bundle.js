@@ -18999,6 +18999,8 @@ module.exports = (function () {
           '<button class="btn btn-default" data-status="finished">Encerrar</button>' +
         '</div>' +
         '<div class="scorer-goals">' +
+          '<input type="text" class="form-control player-input" ' +
+                 'placeholder="Autor do gol (opcional)">' +
           '<button class="btn btn-success goal-home">+ Gol mandante</button> ' +
           '<button class="btn btn-success goal-away">+ Gol visitante</button>' +
         '</div>' +
@@ -19059,17 +19061,25 @@ module.exports = (function () {
       this.halfCounter = 1;
     },
 
-    _addEvent: function (type, text) {
+    _addEvent: function (type, text, player) {
       var ev = new MatchEvent({
         type: type,
         half: this.halfCounter,
         minute: this.minuteCounter,
         text: text || '',
+        player: player || null,
         match: this.model.id
       });
       ev.save();
       this.matchEvents.add(ev);
       this.trigger('scorer:event', ev);
+    },
+
+    _consumePlayer: function () {
+      var input = this.$('.player-input');
+      var value = input.val() || '';
+      input.val('');
+      return value || null;
     },
 
     onStatus: function (e) {
@@ -19090,13 +19100,21 @@ module.exports = (function () {
     },
 
     goalHome: function () {
+      var player = this._consumePlayer();
       this.model.save({ homeScore: this.model.get('homeScore') + 1 });
-      this._addEvent('goal', 'Gol do mandante');
+      var text = player ?
+        'Gol do mandante: ' + player :
+        'Gol do mandante';
+      this._addEvent('goal', text, player);
     },
 
     goalAway: function () {
+      var player = this._consumePlayer();
       this.model.save({ awayScore: this.model.get('awayScore') + 1 });
-      this._addEvent('goal', 'Gol do visitante');
+      var text = player ?
+        'Gol do visitante: ' + player :
+        'Gol do visitante';
+      this._addEvent('goal', text, player);
     },
 
     yellowHome: function () { this._addEvent('yellow', 'Amarelo no mandante'); },
