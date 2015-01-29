@@ -4,6 +4,9 @@ module.exports = (function () {
   var Marionette = require('backbone.marionette');
   var escapeHtml = require('../helpers/escape_html');
   var ClassificationTableView = require('../classification/table_view');
+  var TopScorersView = require('../stats/top_scorers_view');
+  var MatchEvents = require('../../collections/match_events');
+  var BaseModel = require('../../persistence/base_model');
 
   var FORMAT_LABELS = {
     'league': 'Pontos corridos',
@@ -31,11 +34,16 @@ module.exports = (function () {
           '<p class="text-muted">Total de partidas: <strong>' +
           data.totalMatches + '</strong> · finalizadas: <strong>' +
           data.finishedMatches + '</strong></p>' +
+        '</section>' +
+        '<section class="top-scorers-section">' +
+          '<h3>Artilheiros</h3>' +
+          '<div class="top-scorers-region"></div>' +
         '</section>';
     },
 
     regions: {
-      classificationRegion: '.classification-region'
+      classificationRegion: '.classification-region',
+      topScorersRegion:     '.top-scorers-region'
     },
 
     serializeData: function () {
@@ -64,6 +72,20 @@ module.exports = (function () {
       ];
     },
 
+    _loadEventsForChampionship: function () {
+      var storage = BaseModel.getStorage();
+      if (!storage) { return new MatchEvents(); }
+      var champId = this.model.id;
+      var matchIds = {};
+      storage.list('matches').forEach(function (m) {
+        if (m.championship === champId) { matchIds[m.id] = true; }
+      });
+      var raw = storage.list('match_events').filter(function (e) {
+        return matchIds[e.match];
+      });
+      return new MatchEvents(raw);
+    },
+
     onShow: function () {
       var rows = this.model.classification();
       this.getRegion('classificationRegion').show(
@@ -71,6 +93,9 @@ module.exports = (function () {
           rows: rows,
           zones: this.zonesFor(rows.length)
         })
+      );
+      this.getRegion('topScorersRegion').show(
+        new TopScorersView({ matchEvents: this._loadEventsForChampionship() })
       );
     }
 
