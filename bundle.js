@@ -16657,6 +16657,7 @@ module.exports = (function () {
       '':                       'home',
       'campeonatos':            'championshipsList',
       'campeonatos/:id':        'championshipsShow',
+      'partidas':               'matchesList',
       'partidas/:id':           'matchShow',
       'times':                  'teamsList',
       'times/:id':              'teamsShow',
@@ -16715,7 +16716,9 @@ module.exports = (function () {
   var ChampionshipShowView = require('../views/championships/show_view');
   var ChampionshipFormView = require('../views/championships/form_view');
   var Match = require('../models/match');
+  var Matches = require('../collections/matches');
   var MatchShowView = require('../views/matches/show_view');
+  var MatchesListView = require('../views/matches/list_view');
   var ScorerView = require('../views/matches/scorer_view');
   var BaseModel = require('../persistence/base_model');
 
@@ -16865,6 +16868,12 @@ module.exports = (function () {
   }
 
   function wireMatchRoutes(app, controller, flash) {
+    controller.matchesList = function () {
+      seedChampionship();
+      var coll = new Matches();
+      coll.fetch();
+      app.getRegion('mainRegion').show(new MatchesListView({ collection: coll }));
+    };
     controller.matchShow = function (id) {
       var match = new Match({ id: id });
       match.fetch();
@@ -16898,7 +16907,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":15,"../collections/teams":18,"../models/championship":22,"../models/match":23,"../models/team":29,"../persistence/base_model":31,"../views/championships/form_view":43,"../views/championships/list_view":44,"../views/championships/show_view":46,"../views/home_view":50,"../views/matches/scorer_view":53,"../views/matches/show_view":54,"../views/teams/form_view":61,"../views/teams/list_view":63,"./router":10}],13:[function(require,module,exports){
+},{"../collections/championships":15,"../collections/matches":17,"../collections/teams":18,"../models/championship":22,"../models/match":23,"../models/team":29,"../persistence/base_model":31,"../views/championships/form_view":43,"../views/championships/list_view":44,"../views/championships/show_view":46,"../views/home_view":50,"../views/matches/list_view":54,"../views/matches/scorer_view":57,"../views/matches/show_view":58,"../views/teams/form_view":65,"../views/teams/list_view":67,"./router":10}],13:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17390,7 +17399,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":31,"./persistence/local_storage_adapter":32,"./views/widgets/flash_view":66,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],22:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":31,"./persistence/local_storage_adapter":32,"./views/widgets/flash_view":70,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],22:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18710,7 +18719,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../persistence/base_model":31,"../classification/table_view":47,"../helpers/escape_html":48,"../stats/top_scorers_view":58,"backbone.marionette":2}],47:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../persistence/base_model":31,"../classification/table_view":47,"../helpers/escape_html":48,"../stats/top_scorers_view":62,"backbone.marionette":2}],47:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18934,6 +18943,21 @@ module.exports = (function () {
   'use strict';
 
   var Marionette = require('backbone.marionette');
+
+  return Marionette.ItemView.extend({
+    tagName: 'tr',
+    className: 'matches-empty',
+    template: function () {
+      return '<td colspan="6" class="text-muted">Nenhuma partida agendada.</td>';
+    }
+  });
+}());
+
+},{"backbone.marionette":2}],52:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
   var escapeHtml = require('../helpers/escape_html');
 
   var ICONS = {
@@ -18984,7 +19008,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":48,"backbone.marionette":2}],52:[function(require,module,exports){
+},{"../helpers/escape_html":48,"backbone.marionette":2}],53:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19020,7 +19044,91 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":48,"./status_labels":56,"backbone.marionette":2}],53:[function(require,module,exports){
+},{"../helpers/escape_html":48,"./status_labels":60,"backbone.marionette":2}],54:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var RowView = require('./row_view');
+  var EmptyView = require('./empty_view');
+
+  return Marionette.CompositeView.extend({
+
+    tagName: 'table',
+    className: 'table table-striped matches-list',
+
+    template: function () {
+      return '' +
+        '<thead><tr>' +
+          '<th>Mandante</th>' +
+          '<th class="text-center">Placar/Horário</th>' +
+          '<th>Visitante</th>' +
+          '<th>Estádio</th>' +
+          '<th>Status</th>' +
+          '<th>Ações</th>' +
+        '</tr></thead>' +
+        '<tbody class="matches-rows"></tbody>';
+    },
+
+    childView: RowView,
+    emptyView: EmptyView,
+    childViewContainer: 'tbody.matches-rows'
+
+  });
+}());
+
+},{"./empty_view":51,"./row_view":56,"backbone.marionette":2}],55:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var escapeHtml = require('../helpers/escape_html');
+  var formatDate = require('../helpers/format_date');
+  var STATUS_LABEL = require('./status_labels').SHORT;
+
+  function scoreBlock(data) {
+    if (data.status === 'scheduled' || data.status === 'postponed') {
+      var label = escapeHtml(formatDate.formatDateTime(data.kickoff));
+      return '<span class="kickoff">' + label + '</span>';
+    }
+    return '<span class="score">' +
+      escapeHtml(data.homeScore) + ' x ' + escapeHtml(data.awayScore) +
+      '</span>';
+  }
+
+  return function rowTemplate(data) {
+    var showHref = data.id ? '#/partidas/' + encodeURIComponent(data.id) : '#';
+    var statusBadge = STATUS_LABEL[data.status] || '';
+    return '' +
+      '<td class="match-home">' + escapeHtml(data.home) + '</td>' +
+      '<td class="match-score">' + scoreBlock(data) + '</td>' +
+      '<td class="match-away">' + escapeHtml(data.away) + '</td>' +
+      '<td class="match-stadium">' + escapeHtml(data.stadium || '') + '</td>' +
+      '<td class="match-status">' +
+        (statusBadge ?
+          '<span class="badge status-' + data.status + '">' + statusBadge + '</span>'
+          : '') +
+      '</td>' +
+      '<td class="match-actions">' +
+        '<a class="btn btn-default btn-xs" href="' + showHref + '">Detalhes</a>' +
+      '</td>';
+  };
+}());
+
+},{"../helpers/escape_html":48,"../helpers/format_date":49,"./status_labels":60}],56:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var template = require('./row_template');
+
+  return Marionette.ItemView.extend({
+    tagName: 'tr',
+    className: 'match-row',
+    template: template
+  });
+}());
+
+},{"./row_template":55,"backbone.marionette":2}],57:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19203,7 +19311,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../models/match_event":24,"../../persistence/base_model":31,"../helpers/escape_html":48,"backbone.marionette":2}],54:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../models/match_event":24,"../../persistence/base_model":31,"../helpers/escape_html":48,"backbone.marionette":2}],58:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19343,7 +19451,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../live/cross_tab":19,"../../live/replay":20,"../../persistence/base_model":31,"./header_view":52,"./stats_view":55,"./timeline_view":57,"backbone.marionette":2}],55:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../live/cross_tab":19,"../../live/replay":20,"../../persistence/base_model":31,"./header_view":53,"./stats_view":59,"./timeline_view":61,"backbone.marionette":2}],59:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19396,7 +19504,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/match_stats":39,"backbone.marionette":2}],56:[function(require,module,exports){
+},{"../../stats/match_stats":39,"backbone.marionette":2}],60:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19418,7 +19526,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],57:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19439,7 +19547,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./event_item_view":51,"backbone.marionette":2}],58:[function(require,module,exports){
+},{"./event_item_view":52,"backbone.marionette":2}],62:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19479,7 +19587,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/top_scorers":40,"../helpers/escape_html":48,"backbone.marionette":2}],59:[function(require,module,exports){
+},{"../../stats/top_scorers":40,"../helpers/escape_html":48,"backbone.marionette":2}],63:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19494,7 +19602,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],60:[function(require,module,exports){
+},{"backbone.marionette":2}],64:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19525,7 +19633,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":48}],61:[function(require,module,exports){
+},{"../helpers/escape_html":48}],65:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19581,7 +19689,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":48,"./form_template":60,"backbone.marionette":2}],62:[function(require,module,exports){
+},{"../helpers/escape_html":48,"./form_template":64,"backbone.marionette":2}],66:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19605,7 +19713,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],63:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19627,7 +19735,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":59,"./list_template":62,"./row_view":65,"backbone.marionette":2}],64:[function(require,module,exports){
+},{"./empty_view":63,"./list_template":66,"./row_view":69,"backbone.marionette":2}],68:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19651,7 +19759,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":48}],65:[function(require,module,exports){
+},{"../helpers/escape_html":48}],69:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19680,7 +19788,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":64,"backbone.marionette":2}],66:[function(require,module,exports){
+},{"./row_template":68,"backbone.marionette":2}],70:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
