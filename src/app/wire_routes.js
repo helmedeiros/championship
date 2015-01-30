@@ -13,7 +13,9 @@ module.exports = (function () {
   var ChampionshipShowView = require('../views/championships/show_view');
   var ChampionshipFormView = require('../views/championships/form_view');
   var Match = require('../models/match');
+  var Matches = require('../collections/matches');
   var MatchShowView = require('../views/matches/show_view');
+  var MatchesListView = require('../views/matches/list_view');
   var ScorerView = require('../views/matches/scorer_view');
   var BaseModel = require('../persistence/base_model');
 
@@ -163,6 +165,12 @@ module.exports = (function () {
   }
 
   function wireMatchRoutes(app, controller, flash) {
+    controller.matchesList = function () {
+      seedChampionship();
+      var coll = new Matches();
+      coll.fetch();
+      app.getRegion('mainRegion').show(new MatchesListView({ collection: coll }));
+    };
     controller.matchShow = function (id) {
       var match = new Match({ id: id });
       match.fetch();

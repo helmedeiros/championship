@@ -7,6 +7,7 @@ module.exports = (function () {
       '':                       'home',
       'campeonatos':            'championshipsList',
       'campeonatos/:id':        'championshipsShow',
+      'partidas':               'matchesList',
       'partidas/:id':           'matchShow',
       'times':                  'teamsList',
       'times/:id':              'teamsShow',
