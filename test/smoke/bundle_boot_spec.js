@@ -149,6 +149,29 @@ describe('smoke/bundle', function () {
     }, 300);
   });
 
+  it('navega para #/partidas e renderiza tabela de partidas', function (done) {
+    var bundle = fs.readFileSync(BUNDLE, 'utf8');
+    var html = '<!DOCTYPE html><html><body>' +
+      '<div id="regiao-navegacao"></div>' +
+      '<div id="regiao-mensagens"></div>' +
+      '<div id="regiao-principal"><h1>Carregando&hellip;</h1></div>' +
+      '</body></html>';
+    var doc = jsdom.jsdom(html, { url: 'http://localhost/#/partidas' });
+    var win = doc.defaultView;
+    polyfillLocalStorage(win);
+    try { win.eval(bundle); } catch (e) { return done(e); }
+    setTimeout(function () {
+      var region = doc.getElementById('regiao-principal');
+      try {
+        var table = region.querySelector('table.matches-list');
+        expect(table, 'tabela matches-list deveria existir').to.not.equal(null);
+        var rows = region.querySelectorAll('tbody tr.match-row');
+        expect(rows.length, 'partidas semeadas deveriam aparecer').to.be.above(0);
+        done();
+      } catch (a) { done(a); }
+    }, 400);
+  });
+
   it('navega para #/times e renderiza a tabela TeamsListView', function (done) {
     var bundle = fs.readFileSync(BUNDLE, 'utf8');
 
