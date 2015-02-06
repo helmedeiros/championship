@@ -15,11 +15,22 @@ module.exports = (function () {
       '</span>';
   }
 
+  function roundBadge(data) {
+    if (!data.round) { return ''; }
+    var label = data.group ?
+      escapeHtml(data.group) + ' · R' + data.round :
+      'Rodada ' + data.round;
+    return '<small class="text-muted match-round">' + label + '</small>';
+  }
+
   return function rowTemplate(data) {
     var showHref = data.id ? '#/partidas/' + encodeURIComponent(data.id) : '#';
     var statusBadge = STATUS_LABEL[data.status] || '';
     return '' +
-      '<td class="match-home">' + escapeHtml(data.home) + '</td>' +
+      '<td class="match-home">' +
+        escapeHtml(data.home) +
+        (data.round ? ' ' + roundBadge(data) : '') +
+      '</td>' +
       '<td class="match-score">' + scoreBlock(data) + '</td>' +
       '<td class="match-away">' + escapeHtml(data.away) + '</td>' +
       '<td class="match-stadium">' + escapeHtml(data.stadium || '') + '</td>' +
