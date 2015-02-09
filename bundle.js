@@ -19196,6 +19196,13 @@ module.exports = (function () {
           '<button class="btn btn-danger red-home">Vermelho M</button> ' +
           '<button class="btn btn-danger red-away">Vermelho V</button>' +
         '</div>' +
+        '<div class="scorer-sub">' +
+          '<input type="text" class="form-control sub-in" ' +
+                 'placeholder="Entra">' +
+          '<input type="text" class="form-control sub-out" ' +
+                 'placeholder="Sai">' +
+          '<button class="btn btn-info sub-confirm">Substituição</button>' +
+        '</div>' +
         '<div class="scorer-comment">' +
           '<div class="input-group">' +
             '<input type="text" class="form-control comment-input" ' +
@@ -19215,6 +19222,7 @@ module.exports = (function () {
       'click .yellow-away': 'yellowAway',
       'click .red-home':    'redHome',
       'click .red-away':    'redAway',
+      'click .sub-confirm': 'sendSub',
       'click .tick-minute': 'tickMinute',
       'click .comment-send': 'sendComment',
       'keypress .comment-input': 'commentKey'
@@ -19313,6 +19321,17 @@ module.exports = (function () {
       if (!text) { return; }
       this._addEvent('comment', text);
       this.$('.comment-input').val('');
+    },
+
+    sendSub: function () {
+      var incoming = this.$('.sub-in').val() || '';
+      var outgoing = this.$('.sub-out').val() || '';
+      if (!incoming && !outgoing) { return; }
+      this.$('.sub-in').val('');
+      this.$('.sub-out').val('');
+      this._addEvent('sub',
+        'Entra ' + (incoming || '?') + ', sai ' + (outgoing || '?'),
+        incoming || null);
     },
 
     commentKey: function (e) {
