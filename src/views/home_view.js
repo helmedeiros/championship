@@ -5,6 +5,24 @@ module.exports = (function () {
   var escapeHtml = require('./helpers/escape_html');
   var formatDate = require('./helpers/format_date');
   var Matches = require('../collections/matches');
+  var Teams = require('../collections/teams');
+  var Championships = require('../collections/championships');
+
+  function countTeams() {
+    try {
+      var coll = new Teams();
+      coll.fetch();
+      return coll.length;
+    } catch (e) { return 0; }
+  }
+
+  function countChampionships() {
+    try {
+      var coll = new Championships();
+      coll.fetch();
+      return coll.length;
+    } catch (e) { return 0; }
+  }
 
   function pickHighlight() {
     var coll = new Matches();
@@ -63,14 +81,16 @@ module.exports = (function () {
         '<div class="row home-cards">' +
           '<div class="col-md-4">' +
             '<div class="panel panel-default"><div class="panel-body">' +
-              '<h3>Campeonatos</h3>' +
+              '<h3>Campeonatos <span class="badge home-count-champs">' +
+                countChampionships() + '</span></h3>' +
               '<p>Veja a tabela de pontos e o calendário.</p>' +
               '<a class="btn btn-primary" href="#/campeonatos">Ver campeonatos</a>' +
             '</div></div>' +
           '</div>' +
           '<div class="col-md-4">' +
             '<div class="panel panel-default"><div class="panel-body">' +
-              '<h3>Times</h3>' +
+              '<h3>Times <span class="badge home-count-teams">' +
+                countTeams() + '</span></h3>' +
               '<p>Cadastre clubes e seleções.</p>' +
               '<a class="btn btn-primary" href="#/times">Ver times</a>' +
             '</div></div>' +
