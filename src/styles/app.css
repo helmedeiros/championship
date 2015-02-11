@@ -131,3 +131,61 @@ body {
   display: inline-block;
   width: 24px;
 }
+
+.home-cards h3 .badge {
+  font-size: 14px;
+  margin-left: 8px;
+  background-color: #3498db;
+}
+
+.scorer .scorer-board {
+  font-size: 22px;
+  text-align: center;
+}
+
+.scorer .scorer-board .score-home,
+.scorer .scorer-board .score-away {
+  font-size: 30px;
+  font-weight: bold;
+}
+
+.scorer-clock {
+  text-align: center;
+  margin: 6px 0;
+  color: #666;
+}
+
+.scorer .scorer-goals,
+.scorer .scorer-cards,
+.scorer .scorer-sub,
+.scorer .scorer-status {
+  margin: 12px 0;
+}
+
+.scorer .player-input,
+.scorer .sub-in,
+.scorer .sub-out {
+  display: inline-block;
+  width: auto;
+  max-width: 160px;
+  margin-right: 6px;
+}
+
+.match-tabs {
+  margin-top: 16px;
+}
+
+.match-tab-content {
+  border: 1px solid #ddd;
+  border-top: none;
+  padding: 14px;
+}
+
+.match-round {
+  font-size: 10px;
+  margin-left: 6px;
+}
+
+.top-scorers-section {
+  margin-top: 20px;
+}
