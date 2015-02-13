@@ -15,8 +15,9 @@ Públicas:
 - `#/` — página inicial com atalhos
 - `#/times` — lista de times
 - `#/campeonatos` — lista de campeonatos
-- `#/campeonatos/:id` — classificação e resumo de um campeonato
-- `#/partidas/:id` — detalhe de uma partida (em construção)
+- `#/campeonatos/:id` — classificação, artilheiros e resumo do campeonato
+- `#/partidas` — lista geral de partidas
+- `#/partidas/:id` — detalhe da partida com tabs Linha do Tempo / Estatísticas
 - `#/importar` — importadores prontos (em construção)
 
 Área admin:
@@ -25,7 +26,9 @@ Públicas:
 - `#/admin/times/novo` — cadastrar time
 - `#/admin/times/:id` — editar time existente
 - `#/admin/campeonatos/novo` — cadastrar campeonato e gerar calendário
-- `#/admin/partidas/:id/scoreboard` — placar ao vivo (em construção)
+- `#/admin/partidas/:id/scoreboard` — placar ao vivo com botões de gol,
+  cartão, substituição e comentário. Mudanças se propagam para outras abas
+  via evento `storage` do navegador.
 
 ## Formatos suportados
 
@@ -33,6 +36,15 @@ Públicas:
 - **Pontos corridos com ida e volta** (`double-round-robin`) — Brasileirão Série A
 - **Grupos + mata-mata** (`groups-knockout`) — Copa do Mundo
 - **Mata-mata puro** (`knockout`)
+
+## Acompanhamento ao vivo
+
+- Abra `#/admin/partidas/:id/scoreboard` em uma aba para operar como scorer.
+- Abra `#/partidas/:id` em outra aba para acompanhar como torcedor.
+- Gols, cartões, substituições e comentários registrados no scorer aparecem
+  na linha do tempo da outra aba sem precisar atualizar.
+- Para partidas finalizadas, os botões "Reviver (4×)" e "Reviver (16×)" no
+  detalhe da partida reproduzem todos os eventos no ritmo original do jogo.
 
 ## Como rodar
 
