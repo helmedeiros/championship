@@ -118,6 +118,40 @@ describe('smoke/bundle', function () {
     }, 300);
   });
 
+  it('clicar na tab Estatísticas no match show mostra tabela de stats', function (done) {
+    var bundle = fs.readFileSync(BUNDLE, 'utf8');
+    var html = '<!DOCTYPE html><html><body>' +
+      '<div id="regiao-navegacao"></div>' +
+      '<div id="regiao-mensagens"></div>' +
+      '<div id="regiao-principal"><h1>Carregando&hellip;</h1></div>' +
+      '</body></html>';
+    var doc = jsdom.jsdom(html, { url: 'http://localhost/#/campeonatos' });
+    var win = doc.defaultView;
+    polyfillLocalStorage(win);
+    try { win.eval(bundle); } catch (e) { return done(e); }
+    setTimeout(function () {
+      var raw = win.localStorage.getItem('championship:matches');
+      var matches = raw ? JSON.parse(raw) : [];
+      expect(matches.length).to.be.above(0);
+      win.location.hash = '#/partidas/' + matches[0].id;
+      setTimeout(function () {
+        var region = doc.getElementById('regiao-principal');
+        try {
+          var tab = region.querySelector('.match-tabs li[data-tab="stats"]');
+          expect(tab, 'deveria existir tab Estatísticas').to.not.equal(null);
+          var ev = doc.createEvent('MouseEvents');
+          ev.initEvent('click', true, true);
+          tab.dispatchEvent(ev);
+          setTimeout(function () {
+            var stats = region.querySelector('table.stats-summary');
+            expect(stats, 'tab Estatísticas deveria mostrar tabela').to.not.equal(null);
+            done();
+          }, 100);
+        } catch (a) { done(a); }
+      }, 300);
+    }, 300);
+  });
+
   it('navega para o scoreboard admin e renderiza ScorerView', function (done) {
     var bundle = fs.readFileSync(BUNDLE, 'utf8');
     var html = '<!DOCTYPE html><html><body>' +
