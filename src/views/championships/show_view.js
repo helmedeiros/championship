@@ -5,6 +5,7 @@ module.exports = (function () {
   var escapeHtml = require('../helpers/escape_html');
   var ClassificationTableView = require('../classification/table_view');
   var TopScorersView = require('../stats/top_scorers_view');
+  var CardsLeaderboardView = require('../stats/cards_leaderboard_view');
   var MatchEvents = require('../../collections/match_events');
   var BaseModel = require('../../persistence/base_model');
 
@@ -35,15 +36,26 @@ module.exports = (function () {
           data.totalMatches + '</strong> · finalizadas: <strong>' +
           data.finishedMatches + '</strong></p>' +
         '</section>' +
-        '<section class="top-scorers-section">' +
-          '<h3>Artilheiros</h3>' +
-          '<div class="top-scorers-region"></div>' +
-        '</section>';
+        '<div class="row">' +
+          '<div class="col-md-6">' +
+            '<section class="top-scorers-section">' +
+              '<h3>Artilheiros</h3>' +
+              '<div class="top-scorers-region"></div>' +
+            '</section>' +
+          '</div>' +
+          '<div class="col-md-6">' +
+            '<section class="cards-leaderboard-section">' +
+              '<h3>Disciplina</h3>' +
+              '<div class="cards-region"></div>' +
+            '</section>' +
+          '</div>' +
+        '</div>';
     },
 
     regions: {
       classificationRegion: '.classification-region',
-      topScorersRegion:     '.top-scorers-region'
+      topScorersRegion:     '.top-scorers-region',
+      cardsRegion:          '.cards-region'
     },
 
     serializeData: function () {
@@ -94,8 +106,12 @@ module.exports = (function () {
           zones: this.zonesFor(rows.length)
         })
       );
+      var events = this._loadEventsForChampionship();
       this.getRegion('topScorersRegion').show(
-        new TopScorersView({ matchEvents: this._loadEventsForChampionship() })
+        new TopScorersView({ matchEvents: events })
+      );
+      this.getRegion('cardsRegion').show(
+        new CardsLeaderboardView({ matchEvents: events })
       );
     }
 
