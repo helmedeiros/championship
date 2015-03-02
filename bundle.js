@@ -16711,6 +16711,7 @@ module.exports = (function () {
   var Championships = require('../collections/championships');
   var TeamsListView = require('../views/teams/list_view');
   var TeamFormView = require('../views/teams/form_view');
+  var TeamProfileView = require('../views/teams/profile_view');
   var HomeView = require('../views/home_view');
   var ChampionshipsListView = require('../views/championships/list_view');
   var ChampionshipShowView = require('../views/championships/show_view');
@@ -16798,6 +16799,11 @@ module.exports = (function () {
       var teams = new Teams();
       teams.fetch();
       app.getRegion('mainRegion').show(new TeamsListView({ collection: teams }));
+    };
+    controller.teamsShow = function (id) {
+      var team = new Team({ id: id });
+      team.fetch();
+      app.getRegion('mainRegion').show(new TeamProfileView({ model: team }));
     };
     controller['admin.teamNew'] = function () {
       var form = new TeamFormView({ model: new Team() });
@@ -16907,7 +16913,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":15,"../collections/matches":17,"../collections/teams":18,"../models/championship":22,"../models/match":23,"../models/team":29,"../persistence/base_model":31,"../views/championships/form_view":44,"../views/championships/list_view":45,"../views/championships/show_view":47,"../views/home_view":51,"../views/matches/list_view":55,"../views/matches/scorer_view":58,"../views/matches/show_view":59,"../views/teams/form_view":67,"../views/teams/list_view":69,"./router":10}],13:[function(require,module,exports){
+},{"../collections/championships":15,"../collections/matches":17,"../collections/teams":18,"../models/championship":22,"../models/match":23,"../models/team":29,"../persistence/base_model":31,"../views/championships/form_view":44,"../views/championships/list_view":45,"../views/championships/show_view":47,"../views/home_view":51,"../views/matches/list_view":55,"../views/matches/scorer_view":58,"../views/matches/show_view":59,"../views/teams/form_view":67,"../views/teams/list_view":69,"../views/teams/profile_view":70,"./router":10}],13:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17399,7 +17405,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":31,"./persistence/local_storage_adapter":32,"./views/widgets/flash_view":72,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],22:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":31,"./persistence/local_storage_adapter":32,"./views/widgets/flash_view":73,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],22:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19892,7 +19898,103 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":65,"./list_template":68,"./row_view":71,"backbone.marionette":2}],70:[function(require,module,exports){
+},{"./empty_view":65,"./list_template":68,"./row_view":72,"backbone.marionette":2}],70:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var escapeHtml = require('../helpers/escape_html');
+  var Matches = require('../../collections/matches');
+
+  function recentResultDot(result) {
+    var color = result === 'W' ? 'green' : result === 'D' ? 'gray' : 'red';
+    return '<span class="result-dot result-' + color + '">●</span>';
+  }
+
+  function statCol(label, value) {
+    return '<div class="col-md-2"><h4>' + label + '</h4>' +
+      '<p class="stat">' + value + '</p></div>';
+  }
+
+  function summarize(matches, teamId) {
+    var played = 0;
+    var wins = 0;
+    var draws = 0;
+    var losses = 0;
+    var goalsFor = 0;
+    var goalsAgainst = 0;
+    var recent = [];
+    matches.forEach(function (m) {
+      if (m.get('status') !== 'finished') { return; }
+      played = played + 1;
+      var home = m.get('home') === teamId;
+      var gf = home ? m.get('homeScore') : m.get('awayScore');
+      var ga = home ? m.get('awayScore') : m.get('homeScore');
+      goalsFor = goalsFor + gf;
+      goalsAgainst = goalsAgainst + ga;
+      if (gf > ga) { wins = wins + 1; recent.push('W'); }
+      else if (gf < ga) { losses = losses + 1; recent.push('L'); }
+      else { draws = draws + 1; recent.push('D'); }
+    });
+    if (recent.length > 10) { recent = recent.slice(-10); }
+    return {
+      played: played, wins: wins, draws: draws, losses: losses,
+      goalsFor: goalsFor, goalsAgainst: goalsAgainst,
+      points: wins * 3 + draws,
+      recent: recent
+    };
+  }
+
+  return Marionette.ItemView.extend({
+
+    className: 'team-profile',
+
+    template: function (data) {
+      return '' +
+        '<header class="page-header">' +
+          '<h1>' + escapeHtml(data.name) +
+            ' <small>' + escapeHtml(data.city || '') + '</small></h1>' +
+          '<p class="text-muted">' +
+            (data.stadium ? 'Estádio: ' + escapeHtml(data.stadium) + ' · ' : '') +
+            (data.foundedAt ? 'Fundado em ' + escapeHtml(data.foundedAt) : '') +
+          '</p>' +
+        '</header>' +
+        '<div class="row team-stats">' +
+          statCol('Jogos', data.stats.played) +
+          statCol('Vitórias', data.stats.wins) +
+          statCol('Empates', data.stats.draws) +
+          statCol('Derrotas', data.stats.losses) +
+          statCol('Pontos', data.stats.points) +
+          statCol('SG', data.stats.goalsFor - data.stats.goalsAgainst) +
+        '</div>' +
+        '<section class="recent-results">' +
+          '<h3>Últimos resultados</h3>' +
+          '<div class="recent-dots">' +
+            (data.stats.recent.length ?
+              data.stats.recent.map(recentResultDot).join('') :
+              '<span class="text-muted">sem partidas finalizadas</span>') +
+          '</div>' +
+        '</section>';
+    },
+
+    serializeData: function () {
+      var teamId = this.model.id;
+      var coll = new Matches();
+      try { coll.fetch(); } catch (e) {}
+      var team = coll.byTeam(teamId);
+      return {
+        name: this.model.get('name') || teamId,
+        city: this.model.get('city'),
+        stadium: this.model.get('stadium'),
+        foundedAt: this.model.get('foundedAt'),
+        stats: summarize(team, teamId)
+      };
+    }
+
+  });
+}());
+
+},{"../../collections/matches":17,"../helpers/escape_html":49,"backbone.marionette":2}],71:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19916,7 +20018,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":49}],71:[function(require,module,exports){
+},{"../helpers/escape_html":49}],72:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19945,7 +20047,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":70,"backbone.marionette":2}],72:[function(require,module,exports){
+},{"./row_template":71,"backbone.marionette":2}],73:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
