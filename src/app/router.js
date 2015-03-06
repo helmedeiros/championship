@@ -11,6 +11,7 @@ module.exports = (function () {
       'partidas/:id':           'matchShow',
       'times':                  'teamsList',
       'times/:id':              'teamsShow',
+      'h2h/:teamA/:teamB':      'h2hShow',
       'importar':               'importer',
       'admin':                  'admin.home',
       'admin/campeonatos':      'admin.championshipsList',

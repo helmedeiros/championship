@@ -9,6 +9,7 @@ module.exports = (function () {
   var TeamsListView = require('../views/teams/list_view');
   var TeamFormView = require('../views/teams/form_view');
   var TeamProfileView = require('../views/teams/profile_view');
+  var HeadToHeadView = require('../views/stats/head_to_head_view');
   var HomeView = require('../views/home_view');
   var ChampionshipsListView = require('../views/championships/list_view');
   var ChampionshipShowView = require('../views/championships/show_view');
@@ -101,6 +102,11 @@ module.exports = (function () {
       var team = new Team({ id: id });
       team.fetch();
       app.getRegion('mainRegion').show(new TeamProfileView({ model: team }));
+    };
+    controller.h2hShow = function (teamA, teamB) {
+      app.getRegion('mainRegion').show(
+        new HeadToHeadView({ teamA: teamA, teamB: teamB })
+      );
     };
     controller['admin.teamNew'] = function () {
       var form = new TeamFormView({ model: new Team() });
