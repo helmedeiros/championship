@@ -16661,6 +16661,7 @@ module.exports = (function () {
       'partidas/:id':           'matchShow',
       'times':                  'teamsList',
       'times/:id':              'teamsShow',
+      'h2h/:teamA/:teamB':      'h2hShow',
       'importar':               'importer',
       'admin':                  'admin.home',
       'admin/campeonatos':      'admin.championshipsList',
@@ -16712,6 +16713,7 @@ module.exports = (function () {
   var TeamsListView = require('../views/teams/list_view');
   var TeamFormView = require('../views/teams/form_view');
   var TeamProfileView = require('../views/teams/profile_view');
+  var HeadToHeadView = require('../views/stats/head_to_head_view');
   var HomeView = require('../views/home_view');
   var ChampionshipsListView = require('../views/championships/list_view');
   var ChampionshipShowView = require('../views/championships/show_view');
@@ -16804,6 +16806,11 @@ module.exports = (function () {
       var team = new Team({ id: id });
       team.fetch();
       app.getRegion('mainRegion').show(new TeamProfileView({ model: team }));
+    };
+    controller.h2hShow = function (teamA, teamB) {
+      app.getRegion('mainRegion').show(
+        new HeadToHeadView({ teamA: teamA, teamB: teamB })
+      );
     };
     controller['admin.teamNew'] = function () {
       var form = new TeamFormView({ model: new Team() });
@@ -16913,7 +16920,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":15,"../collections/matches":17,"../collections/teams":18,"../models/championship":22,"../models/match":23,"../models/team":29,"../persistence/base_model":31,"../views/championships/form_view":44,"../views/championships/list_view":45,"../views/championships/show_view":47,"../views/home_view":51,"../views/matches/list_view":55,"../views/matches/scorer_view":58,"../views/matches/show_view":59,"../views/teams/form_view":67,"../views/teams/list_view":69,"../views/teams/profile_view":70,"./router":10}],13:[function(require,module,exports){
+},{"../collections/championships":15,"../collections/matches":17,"../collections/teams":18,"../models/championship":22,"../models/match":23,"../models/team":29,"../persistence/base_model":31,"../views/championships/form_view":45,"../views/championships/list_view":46,"../views/championships/show_view":48,"../views/home_view":52,"../views/matches/list_view":56,"../views/matches/scorer_view":59,"../views/matches/show_view":60,"../views/stats/head_to_head_view":65,"../views/teams/form_view":69,"../views/teams/list_view":71,"../views/teams/profile_view":72,"./router":10}],13:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17405,7 +17412,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":31,"./persistence/local_storage_adapter":32,"./views/widgets/flash_view":73,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],22:[function(require,module,exports){
+},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":31,"./persistence/local_storage_adapter":32,"./views/widgets/flash_view":75,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],22:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18344,6 +18351,71 @@ module.exports = (function () {
 module.exports = (function () {
   'use strict';
 
+  // Histórico de confrontos entre dois times.
+  // matches: array (ou Collection) de partidas finalizadas.
+
+  function asArray(matches) {
+    if (!matches) { return []; }
+    if (typeof matches.toArray === 'function') { return matches.toArray(); }
+    return matches;
+  }
+
+  function getField(m, name) {
+    return m && typeof m.get === 'function' ? m.get(name) : (m || {})[name];
+  }
+
+  function involves(home, away, teamA, teamB) {
+    if (home === teamA && away === teamB) { return 'home'; }
+    if (home === teamB && away === teamA) { return 'away'; }
+    return null;
+  }
+
+  function recordOutcome(result, ga, gb) {
+    result.goalsA = result.goalsA + ga;
+    result.goalsB = result.goalsB + gb;
+    if (ga > gb) { result.winsA = result.winsA + 1; }
+    else if (gb > ga) { result.winsB = result.winsB + 1; }
+    else { result.draws = result.draws + 1; }
+  }
+
+  function processMatch(result, m, teamA, teamB) {
+    if (getField(m, 'status') !== 'finished') { return; }
+    var home = getField(m, 'home');
+    var away = getField(m, 'away');
+    var perspective = involves(home, away, teamA, teamB);
+    if (!perspective) { return; }
+    var hs = getField(m, 'homeScore') || 0;
+    var as = getField(m, 'awayScore') || 0;
+    var ga = perspective === 'home' ? hs : as;
+    var gb = perspective === 'home' ? as : hs;
+    result.total = result.total + 1;
+    recordOutcome(result, ga, gb);
+    result.matches.push({
+      home: home, away: away, homeScore: hs, awayScore: as,
+      kickoff: getField(m, 'kickoff')
+    });
+  }
+
+  function summary(matches, teamA, teamB) {
+    var result = {
+      total: 0,
+      winsA: 0, winsB: 0, draws: 0,
+      goalsA: 0, goalsB: 0,
+      matches: []
+    };
+    asArray(matches).forEach(function (m) {
+      processMatch(result, m, teamA, teamB);
+    });
+    return result;
+  }
+
+  return { summary: summary };
+}());
+
+},{}],41:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
   // Estatísticas agregadas a partir dos eventos de uma partida.
   // Inputs aceitos: array de objetos { type, ... } ou Backbone.Collection.
 
@@ -18384,7 +18456,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],41:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18426,7 +18498,7 @@ module.exports = (function () {
   return { rank: rank };
 }());
 
-},{}],42:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18441,7 +18513,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],43:[function(require,module,exports){
+},{"backbone.marionette":2}],44:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18517,7 +18589,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":49}],44:[function(require,module,exports){
+},{"../helpers/escape_html":50}],45:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18595,7 +18667,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":49,"./form_template":43,"backbone.marionette":2}],45:[function(require,module,exports){
+},{"../helpers/escape_html":50,"./form_template":44,"backbone.marionette":2}],46:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18631,7 +18703,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":42,"./row_view":46,"backbone.marionette":2}],46:[function(require,module,exports){
+},{"./empty_view":43,"./row_view":47,"backbone.marionette":2}],47:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18666,7 +18738,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":49,"backbone.marionette":2}],47:[function(require,module,exports){
+},{"../helpers/escape_html":50,"backbone.marionette":2}],48:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18787,7 +18859,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../persistence/base_model":31,"../classification/table_view":48,"../helpers/escape_html":49,"../stats/cards_leaderboard_view":63,"../stats/top_scorers_view":64,"backbone.marionette":2}],48:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../persistence/base_model":31,"../classification/table_view":49,"../helpers/escape_html":50,"../stats/cards_leaderboard_view":64,"../stats/top_scorers_view":66,"backbone.marionette":2}],49:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18861,7 +18933,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":49,"backbone.marionette":2}],49:[function(require,module,exports){
+},{"../helpers/escape_html":50,"backbone.marionette":2}],50:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18875,7 +18947,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],50:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18914,7 +18986,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],51:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19026,7 +19098,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../collections/championships":15,"../collections/matches":17,"../collections/teams":18,"./helpers/escape_html":49,"./helpers/format_date":50,"backbone.marionette":2}],52:[function(require,module,exports){
+},{"../collections/championships":15,"../collections/matches":17,"../collections/teams":18,"./helpers/escape_html":50,"./helpers/format_date":51,"backbone.marionette":2}],53:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19041,7 +19113,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],53:[function(require,module,exports){
+},{"backbone.marionette":2}],54:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19096,7 +19168,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":49,"backbone.marionette":2}],54:[function(require,module,exports){
+},{"../helpers/escape_html":50,"backbone.marionette":2}],55:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19132,7 +19204,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":49,"./status_labels":61,"backbone.marionette":2}],55:[function(require,module,exports){
+},{"../helpers/escape_html":50,"./status_labels":62,"backbone.marionette":2}],56:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19165,7 +19237,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":52,"./row_view":57,"backbone.marionette":2}],56:[function(require,module,exports){
+},{"./empty_view":53,"./row_view":58,"backbone.marionette":2}],57:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19213,7 +19285,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":49,"../helpers/format_date":50,"./status_labels":61}],57:[function(require,module,exports){
+},{"../helpers/escape_html":50,"../helpers/format_date":51,"./status_labels":62}],58:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19227,7 +19299,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":56,"backbone.marionette":2}],58:[function(require,module,exports){
+},{"./row_template":57,"backbone.marionette":2}],59:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19429,7 +19501,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../models/match_event":24,"../../persistence/base_model":31,"../helpers/escape_html":49,"backbone.marionette":2}],59:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../models/match_event":24,"../../persistence/base_model":31,"../helpers/escape_html":50,"backbone.marionette":2}],60:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19569,7 +19641,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../live/cross_tab":19,"../../live/replay":20,"../../persistence/base_model":31,"./header_view":54,"./stats_view":60,"./timeline_view":62,"backbone.marionette":2}],60:[function(require,module,exports){
+},{"../../collections/match_events":16,"../../live/cross_tab":19,"../../live/replay":20,"../../persistence/base_model":31,"./header_view":55,"./stats_view":61,"./timeline_view":63,"backbone.marionette":2}],61:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19622,7 +19694,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/match_stats":40,"backbone.marionette":2}],61:[function(require,module,exports){
+},{"../../stats/match_stats":41,"backbone.marionette":2}],62:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19644,7 +19716,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],62:[function(require,module,exports){
+},{}],63:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19665,7 +19737,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./event_item_view":53,"backbone.marionette":2}],63:[function(require,module,exports){
+},{"./event_item_view":54,"backbone.marionette":2}],64:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19710,7 +19782,74 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/cards_leaderboard":39,"../helpers/escape_html":49,"backbone.marionette":2}],64:[function(require,module,exports){
+},{"../../stats/cards_leaderboard":39,"../helpers/escape_html":50,"backbone.marionette":2}],65:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var escapeHtml = require('../helpers/escape_html');
+  var formatDate = require('../helpers/format_date');
+  var h2h = require('../../stats/head_to_head');
+  var Matches = require('../../collections/matches');
+
+  return Marionette.ItemView.extend({
+
+    className: 'head-to-head',
+
+    initialize: function (options) {
+      var opts = options || {};
+      this.teamA = opts.teamA;
+      this.teamB = opts.teamB;
+      this.collection = opts.matches || null;
+    },
+
+    template: function (data) {
+      var matchesHtml = data.summary.matches.map(function (m) {
+        return '<li>' + escapeHtml(formatDate.formatDate(m.kickoff) || '?') +
+          ' · ' + escapeHtml(m.home) + ' <strong>' + m.homeScore + ' x ' +
+          m.awayScore + '</strong> ' + escapeHtml(m.away) + '</li>';
+      }).join('');
+      if (!matchesHtml) {
+        matchesHtml = '<li class="text-muted">Nenhum confronto finalizado.</li>';
+      }
+      return '<header class="page-header"><h2>' +
+          escapeHtml(data.teamA) + ' × ' + escapeHtml(data.teamB) +
+        '</h2></header>' +
+        '<div class="row h2h-summary">' +
+          '<div class="col-md-3"><h4>Jogos</h4><p class="stat">' +
+            data.summary.total + '</p></div>' +
+          '<div class="col-md-3"><h4>' + escapeHtml(data.teamA) + '</h4>' +
+            '<p class="stat">' + data.summary.winsA + ' V · ' +
+            data.summary.goalsA + ' GP</p></div>' +
+          '<div class="col-md-3"><h4>' + escapeHtml(data.teamB) + '</h4>' +
+            '<p class="stat">' + data.summary.winsB + ' V · ' +
+            data.summary.goalsB + ' GP</p></div>' +
+          '<div class="col-md-3"><h4>Empates</h4><p class="stat">' +
+            data.summary.draws + '</p></div>' +
+        '</div>' +
+        '<section class="h2h-matches">' +
+          '<h3>Confrontos</h3>' +
+          '<ul class="list-unstyled">' + matchesHtml + '</ul>' +
+        '</section>';
+    },
+
+    serializeData: function () {
+      var coll = this.collection;
+      if (!coll) {
+        coll = new Matches();
+        try { coll.fetch(); } catch (e) {}
+      }
+      return {
+        teamA: this.teamA,
+        teamB: this.teamB,
+        summary: h2h.summary(coll, this.teamA, this.teamB)
+      };
+    }
+
+  });
+}());
+
+},{"../../collections/matches":17,"../../stats/head_to_head":40,"../helpers/escape_html":50,"../helpers/format_date":51,"backbone.marionette":2}],66:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19750,7 +19889,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/top_scorers":41,"../helpers/escape_html":49,"backbone.marionette":2}],65:[function(require,module,exports){
+},{"../../stats/top_scorers":42,"../helpers/escape_html":50,"backbone.marionette":2}],67:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19765,7 +19904,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],66:[function(require,module,exports){
+},{"backbone.marionette":2}],68:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19796,7 +19935,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":49}],67:[function(require,module,exports){
+},{"../helpers/escape_html":50}],69:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19852,7 +19991,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":49,"./form_template":66,"backbone.marionette":2}],68:[function(require,module,exports){
+},{"../helpers/escape_html":50,"./form_template":68,"backbone.marionette":2}],70:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19876,7 +20015,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],69:[function(require,module,exports){
+},{}],71:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19898,7 +20037,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":65,"./list_template":68,"./row_view":72,"backbone.marionette":2}],70:[function(require,module,exports){
+},{"./empty_view":67,"./list_template":70,"./row_view":74,"backbone.marionette":2}],72:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19994,7 +20133,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/matches":17,"../helpers/escape_html":49,"backbone.marionette":2}],71:[function(require,module,exports){
+},{"../../collections/matches":17,"../helpers/escape_html":50,"backbone.marionette":2}],73:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20022,7 +20161,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":49}],72:[function(require,module,exports){
+},{"../helpers/escape_html":50}],74:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20051,7 +20190,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":71,"backbone.marionette":2}],73:[function(require,module,exports){
+},{"./row_template":73,"backbone.marionette":2}],75:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20114,4 +20253,4 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":49,"backbone.marionette":2}]},{},[21]);
+},{"../helpers/escape_html":50,"backbone.marionette":2}]},{},[21]);
