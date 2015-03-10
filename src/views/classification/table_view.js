@@ -3,12 +3,10 @@ module.exports = (function () {
 
   var Marionette = require('backbone.marionette');
   var escapeHtml = require('../helpers/escape_html');
+  var sparkline = require('../helpers/sparkline');
 
   function dotsFor(results) {
-    return (results || []).map(function (r) {
-      var color = r === 'W' ? 'green' : r === 'D' ? 'gray' : 'red';
-      return '<span class="result-dot result-' + color + '">●</span>';
-    }).join('');
+    return sparkline.render(results, { size: 9, gap: 3 });
   }
 
   function zoneFor(zones, position) {

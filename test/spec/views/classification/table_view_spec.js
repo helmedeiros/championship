@@ -38,14 +38,15 @@ describe('views/classification/TableView', function () {
     expect(view.$('tbody .sg').text()).to.equal('+3');
   });
 
-  it('renderiza pontos coloridos para últimos resultados', function () {
+  it('renderiza círculos SVG coloridos para últimos resultados', function () {
     var view = new TableView({ rows: [{
       team: 'a', points: 0, played: 2, wins: 0, draws: 0, losses: 2,
       goalsFor: 0, goalsAgainst: 4, percentage: 0,
       recentResults: ['L', 'L']
     }] });
     view.render();
-    expect(view.$('.ultimos .result-red')).to.have.length(2);
+    expect(view.$('.ultimos svg.sparkline circle')).to.have.length(2);
+    expect(view.$('.ultimos svg.sparkline').html()).to.contain('#c0392b');
   });
 
   it('aplica classe de zona às linhas conforme posição', function () {
