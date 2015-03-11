@@ -4,11 +4,7 @@ module.exports = (function () {
   var Marionette = require('backbone.marionette');
   var escapeHtml = require('../helpers/escape_html');
   var Matches = require('../../collections/matches');
-
-  function recentResultDot(result) {
-    var color = result === 'W' ? 'green' : result === 'D' ? 'gray' : 'red';
-    return '<span class="result-dot result-' + color + '">●</span>';
-  }
+  var sparkline = require('../helpers/sparkline');
 
   function statCol(label, value) {
     return '<div class="col-md-2"><h4>' + label + '</h4>' +
@@ -70,7 +66,7 @@ module.exports = (function () {
           '<h3>Últimos resultados</h3>' +
           '<div class="recent-dots">' +
             (data.stats.recent.length ?
-              data.stats.recent.map(recentResultDot).join('') :
+              sparkline.render(data.stats.recent, { size: 14, gap: 6 }) :
               '<span class="text-muted">sem partidas finalizadas</span>') +
           '</div>' +
         '</section>';
