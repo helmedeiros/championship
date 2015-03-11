@@ -18882,13 +18882,15 @@ module.exports = (function () {
     return '';
   }
 
-  function renderRow(row, idx, zones) {
+  function renderRow(row, idx, zones, total) {
     var position = idx + 1;
     var sg = row.goalsFor - row.goalsAgainst;
     var zoneCls = zoneFor(zones, position);
+    var trophy = (position === 1 && total > 1 && row.played > 0) ?
+      ' <span class="trophy" title="Líder">🏆</span>' : '';
     return '<tr class="' + zoneCls + '">' +
       '<td class="pos">' + position + '</td>' +
-      '<td class="team">' + escapeHtml(row.team) + '</td>' +
+      '<td class="team">' + escapeHtml(row.team) + trophy + '</td>' +
       '<td class="p">' + row.points + '</td>' +
       '<td class="j">' + row.played + '</td>' +
       '<td class="v">' + row.wins + '</td>' +
@@ -18915,8 +18917,9 @@ module.exports = (function () {
         '<th>ÚLTIMOS JOGOS</th>' +
       '</tr></thead>';
       var zones = data.zones;
+      var total = (data.rows || []).length;
       var rows = (data.rows || []).map(function (row, idx) {
-        return renderRow(row, idx, zones);
+        return renderRow(row, idx, zones, total);
       }).join('');
       return head + '<tbody>' + rows + '</tbody>';
     },
