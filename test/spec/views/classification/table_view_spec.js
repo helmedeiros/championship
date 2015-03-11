@@ -24,7 +24,8 @@ describe('views/classification/TableView', function () {
     var tbodyRows = view.$('tbody tr');
     expect(tbodyRows).to.have.length(2);
     expect(view.$('tbody tr').eq(0).find('.pos').text()).to.equal('1');
-    expect(view.$('tbody tr').eq(0).find('.team').text()).to.equal('a');
+    expect(view.$('tbody tr').eq(0).find('.team').text()).to.match(/^a/);
+    expect(view.$('tbody tr').eq(0).find('.team .trophy').length).to.equal(1);
     expect(view.$('tbody tr').eq(0).find('.p').text()).to.equal('6');
     expect(view.$('tbody tr').eq(0).find('.pct').text()).to.equal('100');
   });
