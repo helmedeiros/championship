@@ -46,6 +46,26 @@ module.exports = (function () {
     return null;
   }
 
+  function recentFinishedHtml() {
+    var coll = new Matches();
+    try { coll.fetch(); } catch (e) { return ''; }
+    var finished = coll.finished();
+    if (finished.length === 0) {
+      return '<li class="text-muted">Nenhum jogo finalizado.</li>';
+    }
+    finished.sort(function (a, b) {
+      return new Date(b.get('kickoff') || 0).getTime() -
+             new Date(a.get('kickoff') || 0).getTime();
+    });
+    return finished.slice(0, 3).map(function (m) {
+      return '<li><a href="#/partidas/' + encodeURIComponent(m.id) + '">' +
+        escapeHtml(m.get('home')) +
+        ' <strong>' + m.get('homeScore') + ' x ' + m.get('awayScore') +
+        '</strong> ' + escapeHtml(m.get('away')) +
+      '</a></li>';
+    }).join('');
+  }
+
   function highlightHtml() {
     var highlight = pickHighlight();
     if (!highlight) {
@@ -102,6 +122,14 @@ module.exports = (function () {
                 highlightHtml() +
               '</div>' +
             '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="row home-recent">' +
+          '<div class="col-md-12">' +
+            '<h3>Últimos resultados</h3>' +
+            '<ul class="list-unstyled recent-finished">' +
+              recentFinishedHtml() +
+            '</ul>' +
           '</div>' +
         '</div>';
     }
