@@ -5,10 +5,23 @@ module.exports = (function () {
   var escapeHtml = require('../helpers/escape_html');
   var Matches = require('../../collections/matches');
   var sparkline = require('../helpers/sparkline');
+  var teamRecord = require('../../stats/team_record');
 
   function statCol(label, value) {
     return '<div class="col-md-2"><h4>' + label + '</h4>' +
       '<p class="stat">' + value + '</p></div>';
+  }
+
+  function championshipsListHtml(championships) {
+    var keys = Object.keys(championships || {});
+    if (!keys.length) {
+      return '<p class="text-muted">Nenhuma participação ainda.</p>';
+    }
+    return '<ul class="list-unstyled">' + keys.map(function (k) {
+      return '<li><a href="#/campeonatos/' + encodeURIComponent(k) + '">' +
+        escapeHtml(k) + '</a> · <span class="text-muted">' +
+        championships[k] + ' jogo(s)</span></li>';
+    }).join('') + '</ul>';
   }
 
   function summarize(matches, teamId) {
@@ -69,6 +82,10 @@ module.exports = (function () {
               sparkline.render(data.stats.recent, { size: 14, gap: 6 }) :
               '<span class="text-muted">sem partidas finalizadas</span>') +
           '</div>' +
+        '</section>' +
+        '<section class="team-championships">' +
+          '<h3>Campeonatos disputados</h3>' +
+          championshipsListHtml(data.championships) +
         '</section>';
     },
 
@@ -77,12 +94,14 @@ module.exports = (function () {
       var coll = new Matches();
       try { coll.fetch(); } catch (e) {}
       var team = coll.byTeam(teamId);
+      var record = teamRecord.aggregate(coll, teamId);
       return {
         name: this.model.get('name') || teamId,
         city: this.model.get('city'),
         stadium: this.model.get('stadium'),
         foundedAt: this.model.get('foundedAt'),
-        stats: summarize(team, teamId)
+        stats: summarize(team, teamId),
+        championships: record.championships
       };
     }
 
