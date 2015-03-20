@@ -19392,16 +19392,22 @@ module.exports = (function () {
     return '<small class="text-muted match-round">' + label + '</small>';
   }
 
+  function teamLink(team) {
+    if (!team) { return ''; }
+    return '<a href="#/times/' + encodeURIComponent(team) + '">' +
+      escapeHtml(team) + '</a>';
+  }
+
   return function rowTemplate(data) {
     var showHref = data.id ? '#/partidas/' + encodeURIComponent(data.id) : '#';
     var statusBadge = STATUS_LABEL[data.status] || '';
     return '' +
       '<td class="match-home">' +
-        escapeHtml(data.home) +
+        teamLink(data.home) +
         (data.round ? ' ' + roundBadge(data) : '') +
       '</td>' +
       '<td class="match-score">' + scoreBlock(data) + '</td>' +
-      '<td class="match-away">' + escapeHtml(data.away) + '</td>' +
+      '<td class="match-away">' + teamLink(data.away) + '</td>' +
       '<td class="match-stadium">' + escapeHtml(data.stadium || '') + '</td>' +
       '<td class="match-status">' +
         (statusBadge ?
