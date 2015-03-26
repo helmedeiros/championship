@@ -3,6 +3,7 @@ module.exports = (function () {
 
   var escapeHtml = require('../helpers/escape_html');
   var formatDate = require('../helpers/format_date');
+  var teamLink = require('../helpers/team_link');
   var STATUS_LABEL = require('./status_labels').SHORT;
 
   function scoreBlock(data) {
@@ -23,22 +24,16 @@ module.exports = (function () {
     return '<small class="text-muted match-round">' + label + '</small>';
   }
 
-  function teamLink(team) {
-    if (!team) { return ''; }
-    return '<a href="#/times/' + encodeURIComponent(team) + '">' +
-      escapeHtml(team) + '</a>';
-  }
-
   return function rowTemplate(data) {
     var showHref = data.id ? '#/partidas/' + encodeURIComponent(data.id) : '#';
     var statusBadge = STATUS_LABEL[data.status] || '';
     return '' +
       '<td class="match-home">' +
-        teamLink(data.home) +
+        teamLink.link(data.home) +
         (data.round ? ' ' + roundBadge(data) : '') +
       '</td>' +
       '<td class="match-score">' + scoreBlock(data) + '</td>' +
-      '<td class="match-away">' + teamLink(data.away) + '</td>' +
+      '<td class="match-away">' + teamLink.link(data.away) + '</td>' +
       '<td class="match-stadium">' + escapeHtml(data.stadium || '') + '</td>' +
       '<td class="match-status">' +
         (statusBadge ?
