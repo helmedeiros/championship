@@ -206,6 +206,50 @@ describe('smoke/bundle', function () {
     }, 400);
   });
 
+  it('navega para perfil de time e mostra estatísticas', function (done) {
+    var bundle = fs.readFileSync(BUNDLE, 'utf8');
+    var html = '<!DOCTYPE html><html><body>' +
+      '<div id="regiao-navegacao"></div>' +
+      '<div id="regiao-mensagens"></div>' +
+      '<div id="regiao-principal"><h1>Carregando&hellip;</h1></div>' +
+      '</body></html>';
+    var doc = jsdom.jsdom(html, { url: 'http://localhost/#/times/sao' });
+    var win = doc.defaultView;
+    polyfillLocalStorage(win);
+    try { win.eval(bundle); } catch (e) { return done(e); }
+    setTimeout(function () {
+      var region = doc.getElementById('regiao-principal');
+      try {
+        var profile = region.querySelector('.team-profile');
+        expect(profile, 'team-profile deveria renderizar').to.not.equal(null);
+        var stats = region.querySelectorAll('.team-stats .stat');
+        expect(stats.length, 'deveria mostrar pelo menos 6 stats').to.be.above(5);
+        done();
+      } catch (a) { done(a); }
+    }, 400);
+  });
+
+  it('navega para #/h2h/sao/cor e renderiza confrontos', function (done) {
+    var bundle = fs.readFileSync(BUNDLE, 'utf8');
+    var html = '<!DOCTYPE html><html><body>' +
+      '<div id="regiao-navegacao"></div>' +
+      '<div id="regiao-mensagens"></div>' +
+      '<div id="regiao-principal"><h1>Carregando&hellip;</h1></div>' +
+      '</body></html>';
+    var doc = jsdom.jsdom(html, { url: 'http://localhost/#/h2h/sao/cor' });
+    var win = doc.defaultView;
+    polyfillLocalStorage(win);
+    try { win.eval(bundle); } catch (e) { return done(e); }
+    setTimeout(function () {
+      var region = doc.getElementById('regiao-principal');
+      try {
+        var h2h = region.querySelector('.head-to-head');
+        expect(h2h, 'head-to-head deveria renderizar').to.not.equal(null);
+        done();
+      } catch (a) { done(a); }
+    }, 400);
+  });
+
   it('navega para #/times e renderiza a tabela TeamsListView', function (done) {
     var bundle = fs.readFileSync(BUNDLE, 'utf8');
 
