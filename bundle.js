@@ -18544,7 +18544,7 @@ module.exports = (function () {
     return ev && typeof ev.get === 'function' ? ev.get('player') : (ev || {}).player;
   }
 
-  function rank(events) {
+  function rank(events, options) {
     var list = asArray(events);
     var counts = {};
     list.forEach(function (ev) {
@@ -18554,12 +18554,14 @@ module.exports = (function () {
       if (!player) { return; }
       counts[player] = (counts[player] || 0) + 1;
     });
-    return Object.keys(counts).map(function (p) {
+    var sorted = Object.keys(counts).map(function (p) {
       return { player: p, goals: counts[p] };
     }).sort(function (a, b) {
       if (b.goals !== a.goals) { return b.goals - a.goals; }
       return a.player < b.player ? -1 : a.player > b.player ? 1 : 0;
     });
+    var limit = options && options.limit;
+    return limit ? sorted.slice(0, limit) : sorted;
   }
 
   return { rank: rank };
