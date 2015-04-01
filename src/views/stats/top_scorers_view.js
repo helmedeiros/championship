@@ -10,7 +10,9 @@ module.exports = (function () {
     className: 'top-scorers',
 
     initialize: function (options) {
-      this.matchEvents = options && options.matchEvents;
+      var opts = options || {};
+      this.matchEvents = opts.matchEvents;
+      this.limit = opts.limit || 10;
     },
 
     template: function (data) {
@@ -31,7 +33,9 @@ module.exports = (function () {
     },
 
     serializeData: function () {
-      return { rows: topScorers.rank(this.matchEvents) };
+      return {
+        rows: topScorers.rank(this.matchEvents, { limit: this.limit })
+      };
     }
 
   });
