@@ -19908,7 +19908,9 @@ module.exports = (function () {
     className: 'cards-leaderboard',
 
     initialize: function (options) {
-      this.matchEvents = options && options.matchEvents;
+      var opts = options || {};
+      this.matchEvents = opts.matchEvents;
+      this.limit = opts.limit || 10;
     },
 
     template: function (data) {
@@ -19934,7 +19936,8 @@ module.exports = (function () {
     },
 
     serializeData: function () {
-      return { rows: cards.rank(this.matchEvents) };
+      var rows = cards.rank(this.matchEvents);
+      return { rows: this.limit ? rows.slice(0, this.limit) : rows };
     }
 
   });
