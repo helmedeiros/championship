@@ -234,3 +234,41 @@ body {
 .match-row a:hover {
   text-decoration: underline;
 }
+
+.match-h2h-link {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.match-h2h-link a {
+  color: #3498db;
+}
+
+.h2h-matches ul {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.h2h-matches li {
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.event-icon[data-type="goal"],
+.event-icon[data-type="own_goal"] {
+  color: #1f7a1f;
+}
+
+.event-icon[data-type="yellow"] {
+  background-color: #f1c40f;
+  color: #fff;
+  padding: 0 4px;
+  border-radius: 2px;
+}
+
+.event-icon[data-type="red"] {
+  background-color: #c0392b;
+  color: #fff;
+  padding: 0 4px;
+  border-radius: 2px;
+}
