@@ -12,12 +12,19 @@ navegador. Pronta para hospedagem em GitHub Pages.
 
 Públicas:
 
-- `#/` — página inicial com atalhos
+- `#/` — página inicial com atalhos e últimos resultados
 - `#/times` — lista de times
+- `#/times/:id` — perfil do time com carreira, sparkline de últimos jogos e
+  campeonatos disputados
 - `#/campeonatos` — lista de campeonatos
-- `#/campeonatos/:id` — classificação, artilheiros e resumo do campeonato
+- `#/campeonatos/:id` — classificação (com troféu para o líder, zonas de
+  Libertadores e rebaixamento, sparkline de últimos jogos), artilheiros,
+  ranking disciplinar e resumo do campeonato
 - `#/partidas` — lista geral de partidas
-- `#/partidas/:id` — detalhe da partida com tabs Linha do Tempo / Estatísticas
+- `#/partidas/:id` — detalhe da partida com tabs Linha do Tempo /
+  Estatísticas e atalho para histórico de confrontos
+- `#/h2h/:teamA/:teamB` — head-to-head entre dois times com resumo e lista
+  de confrontos finalizados
 - `#/importar` — importadores prontos (em construção)
 
 Área admin:
@@ -36,6 +43,18 @@ Públicas:
 - **Pontos corridos com ida e volta** (`double-round-robin`) — Brasileirão Série A
 - **Grupos + mata-mata** (`groups-knockout`) — Copa do Mundo
 - **Mata-mata puro** (`knockout`)
+
+## Estatísticas e histórico
+
+- **Classificação**: tabela completa P / J / V / E / D / GP / GC / SG / % com
+  sparkline SVG de últimos 5 jogos e zonas coloridas (Libertadores, rebaixamento).
+- **Artilheiros** (`stats/top_scorers`): ranking por gols, suporta `limit`.
+- **Disciplina** (`stats/cards_leaderboard`): ranking por cartões com vermelho
+  contando como 2 na pontuação.
+- **Head-to-head** (`stats/head_to_head`): vitórias/empates/derrotas e lista de
+  confrontos entre dois times em qualquer mando.
+- **Carreira de time** (`stats/team_record`): pontos, saldo e participações
+  por campeonato somando todas as edições.
 
 ## Acompanhamento ao vivo
 
