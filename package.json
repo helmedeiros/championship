@@ -18,6 +18,7 @@
     "postinstall": "node tools/install-hooks.js"
   },
   "dependencies": {
+    "ajv": "~0.6.0",
     "backbone": "~1.1.2",
     "backbone.marionette": "~2.4.1",
     "handlebars": "~2.0.0",
