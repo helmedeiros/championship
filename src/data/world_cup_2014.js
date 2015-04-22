@@ -2,7 +2,81 @@ module.exports = (function () {
   'use strict';
 
   // Copa do Mundo de 2014 — 32 seleções em 8 grupos de 4.
-  // Estádios traduzidos para o português usado na transmissão brasileira.
+  // Datas no formato ISO em UTC; os jogos reais começavam normalmente às
+  // 13:00, 16:00 ou 17:00 horário de Brasília.
+
+  function m(home, hs, as, away, meta) {
+    return {
+      home: home, away: away,
+      homeScore: hs, awayScore: as,
+      status: 'finished',
+      kickoff: meta[2],
+      round: meta[0],
+      group: meta[1]
+    };
+  }
+  function ctx(round, group, date) {
+    return [round, group, date];
+  }
+
+  var GROUP_MATCHES = [
+    // Grupo A
+    m('BRA', 3, 1, 'CRO', ctx(1, 'Grupo A', '2014-06-12T20:00:00Z')),
+    m('MEX', 1, 0, 'CMR', ctx(1, 'Grupo A', '2014-06-13T16:00:00Z')),
+    m('BRA', 0, 0, 'MEX', ctx(2, 'Grupo A', '2014-06-17T19:00:00Z')),
+    m('CMR', 0, 4, 'CRO', ctx(2, 'Grupo A', '2014-06-18T22:00:00Z')),
+    m('CMR', 1, 4, 'BRA', ctx(3, 'Grupo A', '2014-06-23T20:00:00Z')),
+    m('CRO', 1, 3, 'MEX', ctx(3, 'Grupo A', '2014-06-23T20:00:00Z')),
+    // Grupo B
+    m('ESP', 1, 5, 'NED', ctx(1, 'Grupo B', '2014-06-13T19:00:00Z')),
+    m('CHI', 3, 1, 'AUS', ctx(1, 'Grupo B', '2014-06-13T22:00:00Z')),
+    m('AUS', 2, 3, 'NED', ctx(2, 'Grupo B', '2014-06-18T16:00:00Z')),
+    m('ESP', 0, 2, 'CHI', ctx(2, 'Grupo B', '2014-06-18T19:00:00Z')),
+    m('AUS', 0, 3, 'ESP', ctx(3, 'Grupo B', '2014-06-23T16:00:00Z')),
+    m('NED', 2, 0, 'CHI', ctx(3, 'Grupo B', '2014-06-23T16:00:00Z')),
+    // Grupo C
+    m('COL', 3, 0, 'GRE', ctx(1, 'Grupo C', '2014-06-14T16:00:00Z')),
+    m('CIV', 2, 1, 'JPN', ctx(1, 'Grupo C', '2014-06-14T22:00:00Z')),
+    m('COL', 2, 1, 'CIV', ctx(2, 'Grupo C', '2014-06-19T16:00:00Z')),
+    m('JPN', 0, 0, 'GRE', ctx(2, 'Grupo C', '2014-06-19T22:00:00Z')),
+    m('COL', 4, 1, 'JPN', ctx(3, 'Grupo C', '2014-06-24T20:00:00Z')),
+    m('GRE', 2, 1, 'CIV', ctx(3, 'Grupo C', '2014-06-24T20:00:00Z')),
+    // Grupo D
+    m('URU', 1, 3, 'CRC', ctx(1, 'Grupo D', '2014-06-14T19:00:00Z')),
+    m('ENG', 1, 2, 'ITA', ctx(1, 'Grupo D', '2014-06-14T22:00:00Z')),
+    m('URU', 2, 1, 'ENG', ctx(2, 'Grupo D', '2014-06-19T19:00:00Z')),
+    m('ITA', 0, 1, 'CRC', ctx(2, 'Grupo D', '2014-06-20T16:00:00Z')),
+    m('ITA', 0, 1, 'URU', ctx(3, 'Grupo D', '2014-06-24T16:00:00Z')),
+    m('CRC', 0, 0, 'ENG', ctx(3, 'Grupo D', '2014-06-24T16:00:00Z')),
+    // Grupo E
+    m('SUI', 2, 1, 'ECU', ctx(1, 'Grupo E', '2014-06-15T16:00:00Z')),
+    m('FRA', 3, 0, 'HON', ctx(1, 'Grupo E', '2014-06-15T19:00:00Z')),
+    m('SUI', 2, 5, 'FRA', ctx(2, 'Grupo E', '2014-06-20T19:00:00Z')),
+    m('HON', 1, 2, 'ECU', ctx(2, 'Grupo E', '2014-06-20T22:00:00Z')),
+    m('HON', 0, 3, 'SUI', ctx(3, 'Grupo E', '2014-06-25T20:00:00Z')),
+    m('ECU', 0, 0, 'FRA', ctx(3, 'Grupo E', '2014-06-25T20:00:00Z')),
+    // Grupo F
+    m('ARG', 2, 1, 'BIH', ctx(1, 'Grupo F', '2014-06-15T22:00:00Z')),
+    m('IRN', 0, 0, 'NGA', ctx(1, 'Grupo F', '2014-06-16T19:00:00Z')),
+    m('ARG', 1, 0, 'IRN', ctx(2, 'Grupo F', '2014-06-21T16:00:00Z')),
+    m('NGA', 1, 0, 'BIH', ctx(2, 'Grupo F', '2014-06-21T22:00:00Z')),
+    m('NGA', 2, 3, 'ARG', ctx(3, 'Grupo F', '2014-06-25T16:00:00Z')),
+    m('BIH', 3, 1, 'IRN', ctx(3, 'Grupo F', '2014-06-25T16:00:00Z')),
+    // Grupo G
+    m('GER', 4, 0, 'POR', ctx(1, 'Grupo G', '2014-06-16T16:00:00Z')),
+    m('GHA', 1, 2, 'USA', ctx(1, 'Grupo G', '2014-06-16T22:00:00Z')),
+    m('GER', 2, 2, 'GHA', ctx(2, 'Grupo G', '2014-06-21T19:00:00Z')),
+    m('USA', 2, 2, 'POR', ctx(2, 'Grupo G', '2014-06-22T22:00:00Z')),
+    m('USA', 0, 1, 'GER', ctx(3, 'Grupo G', '2014-06-26T16:00:00Z')),
+    m('POR', 2, 1, 'GHA', ctx(3, 'Grupo G', '2014-06-26T16:00:00Z')),
+    // Grupo H
+    m('BEL', 2, 1, 'ALG', ctx(1, 'Grupo H', '2014-06-17T16:00:00Z')),
+    m('RUS', 1, 1, 'KOR', ctx(1, 'Grupo H', '2014-06-17T22:00:00Z')),
+    m('BEL', 1, 0, 'RUS', ctx(2, 'Grupo H', '2014-06-22T16:00:00Z')),
+    m('KOR', 2, 4, 'ALG', ctx(2, 'Grupo H', '2014-06-22T19:00:00Z')),
+    m('KOR', 0, 1, 'BEL', ctx(3, 'Grupo H', '2014-06-26T20:00:00Z')),
+    m('ALG', 1, 1, 'RUS', ctx(3, 'Grupo H', '2014-06-26T20:00:00Z'))
+  ];
 
   return {
     championship: {
@@ -55,6 +129,6 @@ module.exports = (function () {
       { id: 'RUS', name: 'Rússia',        'short': 'RUS' },
       { id: 'KOR', name: 'Coreia do Sul', 'short': 'KOR' }
     ],
-    matches: []
+    matches: GROUP_MATCHES
   };
 }());
