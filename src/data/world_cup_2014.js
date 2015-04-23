@@ -78,6 +78,30 @@ module.exports = (function () {
     m('ALG', 1, 1, 'RUS', ctx(3, 'Grupo H', '2014-06-26T20:00:00Z'))
   ];
 
+  var KNOCKOUT_MATCHES = [
+    // Oitavas
+    m('BRA', 1, 1, 'CHI', ctx(4, 'Oitavas',   '2014-06-28T17:00:00Z')),
+    m('COL', 2, 0, 'URU', ctx(4, 'Oitavas',   '2014-06-28T21:00:00Z')),
+    m('NED', 2, 1, 'MEX', ctx(4, 'Oitavas',   '2014-06-29T17:00:00Z')),
+    m('CRC', 1, 1, 'GRE', ctx(4, 'Oitavas',   '2014-06-29T21:00:00Z')),
+    m('FRA', 2, 0, 'NGA', ctx(4, 'Oitavas',   '2014-06-30T17:00:00Z')),
+    m('GER', 2, 1, 'ALG', ctx(4, 'Oitavas',   '2014-06-30T21:00:00Z')),
+    m('ARG', 1, 0, 'SUI', ctx(4, 'Oitavas',   '2014-07-01T17:00:00Z')),
+    m('BEL', 2, 1, 'USA', ctx(4, 'Oitavas',   '2014-07-01T21:00:00Z')),
+    // Quartas
+    m('FRA', 0, 1, 'GER', ctx(5, 'Quartas',   '2014-07-04T17:00:00Z')),
+    m('BRA', 2, 1, 'COL', ctx(5, 'Quartas',   '2014-07-04T21:00:00Z')),
+    m('ARG', 1, 0, 'BEL', ctx(5, 'Quartas',   '2014-07-05T17:00:00Z')),
+    m('NED', 0, 0, 'CRC', ctx(5, 'Quartas',   '2014-07-05T21:00:00Z')),
+    // Semifinais
+    m('BRA', 1, 7, 'GER', ctx(6, 'Semifinais', '2014-07-08T21:00:00Z')),
+    m('NED', 0, 0, 'ARG', ctx(6, 'Semifinais', '2014-07-09T21:00:00Z')),
+    // Terceiro lugar
+    m('BRA', 0, 3, 'NED', ctx(7, 'Disputa de 3º', '2014-07-12T21:00:00Z')),
+    // Final
+    m('GER', 1, 0, 'ARG', ctx(7, 'Final',      '2014-07-13T19:00:00Z'))
+  ];
+
   return {
     championship: {
       id:      'world-cup-2014',
@@ -129,6 +153,6 @@ module.exports = (function () {
       { id: 'RUS', name: 'Rússia',        'short': 'RUS' },
       { id: 'KOR', name: 'Coreia do Sul', 'short': 'KOR' }
     ],
-    matches: GROUP_MATCHES
+    matches: GROUP_MATCHES.concat(KNOCKOUT_MATCHES)
   };
 }());
