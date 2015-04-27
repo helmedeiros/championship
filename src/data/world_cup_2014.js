@@ -18,6 +18,10 @@ module.exports = (function () {
   function ctx(round, group, date) {
     return [round, group, date];
   }
+  function withEvents(match, events) {
+    match.events = events;
+    return match;
+  }
 
   var GROUP_MATCHES = [
     // Grupo A
@@ -94,12 +98,36 @@ module.exports = (function () {
     m('ARG', 1, 0, 'BEL', ctx(5, 'Quartas',   '2014-07-05T17:00:00Z')),
     m('NED', 0, 0, 'CRC', ctx(5, 'Quartas',   '2014-07-05T21:00:00Z')),
     // Semifinais
-    m('BRA', 1, 7, 'GER', ctx(6, 'Semifinais', '2014-07-08T21:00:00Z')),
+    withEvents(
+      m('BRA', 1, 7, 'GER', ctx(6, 'Semifinais', '2014-07-08T21:00:00Z')),
+      [
+        { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
+        { type: 'goal', half: 1, minute: 11, player: 'Müller',   text: '0x1 Alemanha' },
+        { type: 'goal', half: 1, minute: 23, player: 'Klose',    text: '0x2 Alemanha' },
+        { type: 'goal', half: 1, minute: 24, player: 'Kroos',    text: '0x3 Alemanha' },
+        { type: 'goal', half: 1, minute: 26, player: 'Kroos',    text: '0x4 Alemanha' },
+        { type: 'goal', half: 1, minute: 29, player: 'Khedira',  text: '0x5 Alemanha' },
+        { type: 'half_time', half: 1, minute: 47, text: 'Intervalo' },
+        { type: 'goal', half: 2, minute: 24, player: 'Schürrle', text: '0x6 Alemanha' },
+        { type: 'goal', half: 2, minute: 34, player: 'Schürrle', text: '0x7 Alemanha' },
+        { type: 'goal', half: 2, minute: 45, player: 'Oscar',    text: '1x7 Brasil' },
+        { type: 'full_time', half: 2, minute: 47, text: 'Fim de jogo' }
+      ]
+    ),
     m('NED', 0, 0, 'ARG', ctx(6, 'Semifinais', '2014-07-09T21:00:00Z')),
     // Terceiro lugar
     m('BRA', 0, 3, 'NED', ctx(7, 'Disputa de 3º', '2014-07-12T21:00:00Z')),
     // Final
-    m('GER', 1, 0, 'ARG', ctx(7, 'Final',      '2014-07-13T19:00:00Z'))
+    withEvents(
+      m('GER', 1, 0, 'ARG', ctx(7, 'Final',      '2014-07-13T19:00:00Z')),
+      [
+        { type: 'kickoff',   half: 1, minute:  0, text: 'Início da final' },
+        { type: 'half_time', half: 1, minute: 47, text: 'Intervalo' },
+        { type: 'goal',  half: 3, minute: 23, player: 'Götze',
+          text: 'Götze marca aos 113 — Alemanha campeã' },
+        { type: 'full_time', half: 4, minute: 30, text: 'Alemanha tetracampeã!' }
+      ]
+    )
   ];
 
   return {
