@@ -56,6 +56,40 @@ module.exports = (function () {
       { id: 'CRI', name: 'Criciúma',       'short': 'CRI', city: 'Criciúma',
         stadium: 'Heriberto Hülse' }
     ],
-    matches: []
+    matches: matchesBuild()
   };
+
+  function r(home, hs, as, away, meta) {
+    return {
+      home: home, away: away,
+      homeScore: hs, awayScore: as,
+      status: 'finished',
+      kickoff: meta[1],
+      round: meta[0],
+      group: null
+    };
+  }
+  function rd(round, date) { return [round, date]; }
+
+  function matchesBuild() {
+    return [
+      // Última rodada (38) — Cruzeiro já campeão, decisões de zona
+      r('CRI', 0, 2, 'CRU', rd(38, '2014-12-07T19:00:00Z')),
+      r('BAH', 1, 2, 'COR', rd(38, '2014-12-07T19:00:00Z')),
+      r('PAL', 4, 0, 'SPT', rd(38, '2014-12-07T19:00:00Z')),
+      r('SAO', 0, 4, 'SAN', rd(38, '2014-12-07T19:00:00Z')),
+      r('FLU', 5, 0, 'CAP', rd(38, '2014-12-07T19:00:00Z')),
+      r('INT', 2, 2, 'CFC', rd(38, '2014-12-07T19:00:00Z')),
+      r('GRE', 3, 4, 'VAS', rd(38, '2014-12-07T19:00:00Z')),
+      r('CHA', 4, 1, 'CAM', rd(38, '2014-12-07T19:00:00Z')),
+      r('FIG', 1, 0, 'GOI', rd(38, '2014-12-07T19:00:00Z')),
+      r('BOT', 0, 1, 'FLA', rd(38, '2014-12-07T19:00:00Z')),
+      // Recortes de outros confrontos marcantes do ano
+      r('COR', 1, 1, 'SAO', rd(12, '2014-08-10T16:00:00Z')),
+      r('FLA', 1, 2, 'FLU', rd(15, '2014-09-07T16:00:00Z')),
+      r('GRE', 2, 1, 'INT', rd(18, '2014-09-28T16:00:00Z')),
+      r('CAM', 1, 0, 'CRU', rd(22, '2014-10-19T16:00:00Z')),
+      r('SAO', 2, 1, 'PAL', rd(27, '2014-11-09T17:00:00Z'))
+    ];
+  }
 }());
