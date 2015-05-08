@@ -1,4 +1,2680 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+'use strict';
+
+var compileSchema = require('./compile')
+    , resolve = require('./compile/resolve')
+    , Cache = require('./cache')
+    , stableStringify = require('json-stable-stringify')
+    , formats = require('./compile/formats')
+    , util = require('./compile/util');
+
+module.exports = Ajv;
+
+var META_SCHEMA_ID = 'http://json-schema.org/draft-04/schema';
+var SCHEMA_URI_FORMAT = /^(?:(?:[a-z][a-z0-9+-.]*:)?\/\/)?[^\s]*$/i;
+function SCHEMA_URI_FORMAT_FUNC(str) {
+    return SCHEMA_URI_FORMAT.test(str);
+}
+
+/**
+ * Creates validator instance.
+ * Usage: `Ajv(opts)`
+ * @param {Object} opts optional options
+ * @return {Object} ajv instance
+ */
+function Ajv(opts) {
+    if (!(this instanceof Ajv)) return new Ajv(opts);
+    var self = this;
+
+    this.opts = opts || {};
+    this._schemas = {};
+    this._refs = {};
+    this._formats = formats(this.opts.format);
+    this._cache = this.opts.cache || new Cache;
+
+    // this is done on purpose, so that methods are bound to the instance
+    // (without using bind) so that they can be used without the instance
+    this.validate = validate;
+    this.compile = compile;
+    this.addSchema = addSchema;
+    this.validateSchema = validateSchema;
+    this.getSchema = getSchema;
+    this.removeSchema = removeSchema;
+    this.addFormat = addFormat;
+    this.errorsText = errorsText;
+
+    addInitialSchemas();
+    addInitialFormats();
+
+
+    /**
+     * Validate data using schema
+     * Schema will be compiled and cached (using serialized JSON as key. [json-stable-stringify](https://github.com/substack/json-stable-stringify) is used to serialize.
+     * @param  {String|Object} schemaKeyRef key, ref or schema object
+     * @param  {Any} data to be validated
+     * @return {Boolean} validation result. Errors from the last validation will be available in `ajv.errors` (and also in compiled schema: `schema.errors`).
+     */
+    function validate(schemaKeyRef, data) {
+        var v;
+        if (typeof schemaKeyRef == 'string') {
+            v = getSchema(schemaKeyRef);
+            if (!v) throw new Error('no schema with key or ref "' + schemaKeyRef + '"');
+        } else v = _addSchema(schemaKeyRef);
+
+        var valid = v(data);
+        self.errors = v.errors;
+        return valid;
+    }
+
+
+    /**
+     * Create validator for passed schema.
+     * @param  {String|Object} schema
+     * @return {Object} validation result { valid: true/false, errors: [...] }
+     */
+    function compile(schema) {
+        return _addSchema(schema);
+    }
+
+
+    /**
+     * Adds schema to the instance.
+     * @param {Object|Array} schema schema or array of schemas. If array is passed, `key` will be ignored.
+     * @param {String} key Optional schema key. Can be passed to `validate` method instead of schema object or id/ref. One schema per instance can have empty `id` and `key`.
+     * @return {Function} compiled schema function.
+     */
+    function addSchema(schema, key, _skipValidation) {
+        if (Array.isArray(schema))
+            return schema.map(function(sch) { return addSchema(sch); });
+        // can key/id have # inside?
+        var key = resolve.normalizeId(key || schema.id);
+        checkUnique(key);
+        var validate = self._schemas[key] = _addSchema(schema, _skipValidation);
+        return validate;
+    }
+
+
+    /**
+     * Add schema that will be used to validate other schemas
+     * removeAdditional option is alway set to false
+     * @param {Object} schema
+     * @param {String} key optional schema key
+     * @return {Function} compiled schema
+     */
+    function addMetaSchema(schema, key, _skipValidation) {
+        var currentRemoveAdditional = self.opts.removeAdditional;
+        self.opts.removeAdditional = false;
+        var validate = addSchema(schema, META_SCHEMA_ID, true);
+        self.opts.removeAdditional = currentRemoveAdditional;
+        return validate;
+    }
+
+
+    /**
+     * Validate schema
+     * @param  {Object} schema schema to validate
+     * @return {Boolean}
+     */
+    function validateSchema(schema) {
+        var $schema = schema.$schema || META_SCHEMA_ID;
+        var currentUriFormat = self._formats.uri;
+        self._formats.uri = typeof currentUriFormat == 'function'
+                            ? SCHEMA_URI_FORMAT_FUNC
+                            : SCHEMA_URI_FORMAT;
+        var valid = validate($schema, schema);
+        self._formats.uri = currentUriFormat;
+        return valid;
+    }
+
+
+    /**
+     * Get compiled schema from the instance by `key` or `ref`.
+     * @param  {String} keyRef `key` that was passed to `addSchema` or full schema reference (`schema.id` or resolved id).
+     * @return {Function} schema validating function (with property `schema`).
+     */
+    function getSchema(keyRef) {
+        keyRef = resolve.normalizeId(keyRef);
+        return self._schemas[keyRef] || self._refs[keyRef];
+    }
+
+
+    /**
+     * Remove cached schema
+     * Even if schema is referenced by other schemas it still can be removed as other schemas have local references
+     * @param  {String|Object} schemaKeyRef key, ref or schema object
+     */
+    function removeSchema(schemaKeyRef) {
+        if (typeof schemaKeyRef == 'string') {
+            schemaKeyRef = resolve.normalizeId(schemaKeyRef);
+            var v = self._schemas[schemaKeyRef] || self._refs[schemaKeyRef];
+            delete self._schemas[schemaKeyRef];
+            delete self._refs[schemaKeyRef];
+            var str = stableStringify(v.schema);
+            self._cache.put(str);
+        } else {
+            var str = stableStringify(schemaKeyRef);
+            self._cache.put(str);
+        }
+    }
+
+
+    function _addSchema(schema, skipValidation) {
+        if (typeof schema != 'object') throw new Error('schema should be object');
+        var str = stableStringify(schema);
+        var cached = self._cache.get(str);
+        if (cached) return cached;
+
+        var id = resolve.normalizeId(schema.id);
+        if (id) checkUnique(id);
+
+        var ok = skipValidation || self.opts.validateSchema === false
+                 || validateSchema(schema);
+        if (!ok) {
+            var message = 'schema is invalid:' + errorsText();
+            if (self.opts.validateSchema == 'log') console.error(message);
+            else throw new Error(message);
+        }
+
+        var localRefs = resolve.ids.call(self, schema);
+
+        var validate = compileSchema.call(self, schema, undefined, localRefs);
+        if (id[0] != '#') self._refs[id] = validate;
+        self._cache.put(str, validate);
+
+        return validate;
+    }
+
+
+    function errorsText(errors, opts) {
+        errors = errors || self.errors;
+        if (!errors) return 'No errors';
+        opts = opts || {};
+        var separator = opts.separator || ', ';
+        var dataVar = opts.dataVar || 'data';
+
+        var text = errors.reduce(function(txt, e) {
+            return e ? txt + e.keyword + ' ' + dataVar + e.dataPath + ': ' + e.message + separator : txt;
+        }, '');
+        return text.slice(0, -separator.length);
+    }
+
+
+    function addFormat(name, format) {
+        if (typeof format == 'string') format = new RegExp(format);
+        self._formats[name] = format;
+    }
+
+
+    function addInitialSchemas() {
+        if (self.opts.meta !== false)
+            addMetaSchema(require('./refs/json-schema-draft-04.json'), META_SCHEMA_ID);
+
+        var optsSchemas = self.opts.schemas;
+        if (!optsSchemas) return;
+        if (Array.isArray(optsSchemas)) addSchema(optsSchemas);
+        else for (var key in optsSchemas) addSchema(optsSchemas[key], key);
+    }
+
+
+    function addInitialFormats() {
+        var optsFormats = self.opts.formats;
+        if (!optsFormats) return;
+        for (var name in optsFormats) {
+            var format = optsFormats[name];
+            addFormat(name, format);
+        }
+    }
+
+
+    function checkUnique(id) {
+        if (self._schemas[id] || self._refs[id])
+            throw new Error('schema with key or id "' + id + '" already exists');
+    }
+}
+
+},{"./cache":2,"./compile":6,"./compile/formats":5,"./compile/resolve":7,"./compile/util":9,"./refs/json-schema-draft-04.json":33,"json-stable-stringify":35}],2:[function(require,module,exports){
+'use strict';
+
+
+var Cache = module.exports = function Cache() {
+    this._cache = {};
+}
+
+
+Cache.prototype.put = function Cache_put(key, value) {
+    this._cache[key] = value;
+};
+
+
+Cache.prototype.get = function Cache_get(key) {
+    return this._cache[key];
+};
+
+},{}],3:[function(require,module,exports){
+'use strict';
+
+//all requires must be explicit because browserify won't work with dynamic requires
+module.exports = {
+  '$ref': require('../dotjs/$ref'),
+  anyOf: require('../dotjs/anyOf'),
+  format: require('../dotjs/format'),
+  maxLength: require('../dotjs/maxLength'),
+  minItems: require('../dotjs/minItems'),
+  minimum: require('../dotjs/minimum'),
+  oneOf: require('../dotjs/oneOf'),
+  required: require('../dotjs/required'),
+  dependencies: require('../dotjs/dependencies'),
+  items: require('../dotjs/items'),
+  maxProperties: require('../dotjs/maxProperties'),
+  minLength: require('../dotjs/minLength'),
+  multipleOf: require('../dotjs/multipleOf'),
+  pattern: require('../dotjs/pattern'),
+  uniqueItems: require('../dotjs/uniqueItems'),
+  allOf: require('../dotjs/allOf'),
+  enum: require('../dotjs/enum'),
+  maxItems: require('../dotjs/maxItems'),
+  maximum: require('../dotjs/maximum'),
+  minProperties: require('../dotjs/minProperties'),
+  not: require('../dotjs/not'),
+  properties: require('../dotjs/properties'),
+  validate: require('../dotjs/validate')
+};
+
+},{"../dotjs/$ref":10,"../dotjs/allOf":11,"../dotjs/anyOf":12,"../dotjs/dependencies":13,"../dotjs/enum":14,"../dotjs/format":15,"../dotjs/items":16,"../dotjs/maxItems":17,"../dotjs/maxLength":18,"../dotjs/maxProperties":19,"../dotjs/maximum":20,"../dotjs/minItems":21,"../dotjs/minLength":22,"../dotjs/minProperties":23,"../dotjs/minimum":24,"../dotjs/multipleOf":25,"../dotjs/not":26,"../dotjs/oneOf":27,"../dotjs/pattern":28,"../dotjs/properties":29,"../dotjs/required":30,"../dotjs/uniqueItems":31,"../dotjs/validate":32}],4:[function(require,module,exports){
+'use strict';
+
+module.exports = function equal(a, b) {
+  if (a === b) return true;
+
+  var arrA = Array.isArray(a)
+    , arrB = Array.isArray(b);
+
+  if (arrA && arrB) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++)
+      if (!equal(a[i], b[i])) return false;
+    return true;
+  }
+
+  if (arrA != arrB) return false;
+
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    var keys = Object.keys(a);
+    if (!equal(keys, Object.keys(b))) return false;
+    for (var i = 0; i < keys.length; i++)
+      if (!equal(a[keys[i]], b[keys[i]])) return false;
+    return true;
+  }
+
+  return false;
+}
+
+},{}],5:[function(require,module,exports){
+'use strict';
+
+var util = require('./util');
+
+var DATE = /^\d\d\d\d-(\d\d)-(\d\d)$/;
+var DAYS = [,31,29,31,30,31,30,31,31,30,31,30,31];
+var TIME = /^(\d\d):(\d\d):(\d\d)(?:\.\d+)?(?:z|[+-]\d\d:\d\d)$/;
+var HOSTNAME = /^[a-z](?:(?:[-0-9a-z]{0,61})?[0-9a-z])?(\.[a-z](?:(?:[-0-9a-z]{0,61})?[0-9a-z])?)*$/i;
+var URI = /^(?:[a-z][a-z0-9+\-.]*:)?(?:\/\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:]|%[0-9a-f]{2})*@)?(?:\[(?:(?:(?:(?:[0-9a-f]{1,4}:){6}|::(?:[0-9a-f]{1,4}:){5}|(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){4}|(?:(?:[0-9a-f]{1,4}:){0,1}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){3}|(?:(?:[0-9a-f]{1,4}:){0,2}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){2}|(?:(?:[0-9a-f]{1,4}:){0,3}[0-9a-f]{1,4})?::[0-9a-f]{1,4}:|(?:(?:[0-9a-f]{1,4}:){0,4}[0-9a-f]{1,4})?::)(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?))|(?:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})?::[0-9a-f]{1,4}|(?:(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4})?::)|[Vv][0-9a-f]+\.[a-z0-9\-._~!$&'()*+,;=:]+)\]|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)|(?:[a-z0-9\-._~!$&'()*+,;=]|%[0-9a-f]{2})*)(?::\d*)?(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*|\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)(?:\?(?:[a-z0-9\-._~!$&'()*+,;=:@\/?]|%[0-9a-f]{2})*)?(?:\#(?:[a-z0-9\-._~!$&'()*+,;=:@\/?]|%[0-9a-f]{2})*)?$/i;
+
+
+module.exports = formats;
+
+function formats(mode) {
+  mode = mode == 'full' ? 'full' : 'fast';
+  return util.copy(formats[mode]);
+}
+
+
+formats.fast = {
+  // date: http://tools.ietf.org/html/rfc3339#section-5.6
+  date: /^\d\d\d\d-[0-1]\d-[0-3]\d$/,
+  // date-time: http://tools.ietf.org/html/rfc3339#section-5.6
+  'date-time': /^\d\d\d\d-[0-1]\d-[0-3]\d[t ][0-2]\d:[0-5]\d:[0-5]\d(?:\.\d+)?(?:z|[+-]\d\d:\d\d)$/i,
+  // uri: https://github.com/mafintosh/is-my-json-valid/blob/master/formats.js
+  uri: /^(?:[a-z][a-z0-9+-.]*:)?\/\/[^\s]*$/i, 
+  // email (sources from jsen validator):
+  // http://stackoverflow.com/questions/201323/using-a-regular-expression-to-validate-an-email-address#answer-8829363
+  // http://www.w3.org/TR/html5/forms.html#valid-e-mail-address (search for 'willful violation')
+  email: /^[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/i,
+  hostname: HOSTNAME,
+  // optimized https://www.safaribooksonline.com/library/view/regular-expressions-cookbook/9780596802837/ch07s16.html
+  ipv4: /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/,
+  // optimized http://stackoverflow.com/questions/53497/regular-expression-that-matches-valid-ipv6-addresses
+  ipv6: /^\s*(?:(?:(?:[0-9a-f]{1,4}:){7}(?:[0-9a-f]{1,4}|:))|(?:(?:[0-9a-f]{1,4}:){6}(?::[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(?:(?:[0-9a-f]{1,4}:){5}(?:(?:(?::[0-9a-f]{1,4}){1,2})|:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(?:(?:[0-9a-f]{1,4}:){4}(?:(?:(?::[0-9a-f]{1,4}){1,3})|(?:(?::[0-9a-f]{1,4})?:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9a-f]{1,4}:){3}(?:(?:(?::[0-9a-f]{1,4}){1,4})|(?:(?::[0-9a-f]{1,4}){0,2}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9a-f]{1,4}:){2}(?:(?:(?::[0-9a-f]{1,4}){1,5})|(?:(?::[0-9a-f]{1,4}){0,3}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9a-f]{1,4}:){1}(?:(?:(?::[0-9a-f]{1,4}){1,6})|(?:(?::[0-9a-f]{1,4}){0,4}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?::(?:(?:(?::[0-9a-f]{1,4}){1,7})|(?:(?::[0-9a-f]{1,4}){0,5}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(?:%.+)?\s*$/i,
+  regex: regex
+};
+
+
+formats.full = {
+  date: date,
+  'date-time': date_time,
+  uri: uri,
+  email: /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&''*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+  hostname: hostname,
+  ipv4: /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/,
+  ipv6: /^\s*(?:(?:(?:[0-9a-f]{1,4}:){7}(?:[0-9a-f]{1,4}|:))|(?:(?:[0-9a-f]{1,4}:){6}(?::[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(?:(?:[0-9a-f]{1,4}:){5}(?:(?:(?::[0-9a-f]{1,4}){1,2})|:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(?:(?:[0-9a-f]{1,4}:){4}(?:(?:(?::[0-9a-f]{1,4}){1,3})|(?:(?::[0-9a-f]{1,4})?:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9a-f]{1,4}:){3}(?:(?:(?::[0-9a-f]{1,4}){1,4})|(?:(?::[0-9a-f]{1,4}){0,2}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9a-f]{1,4}:){2}(?:(?:(?::[0-9a-f]{1,4}){1,5})|(?:(?::[0-9a-f]{1,4}){0,3}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9a-f]{1,4}:){1}(?:(?:(?::[0-9a-f]{1,4}){1,6})|(?:(?::[0-9a-f]{1,4}){0,4}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?::(?:(?:(?::[0-9a-f]{1,4}){1,7})|(?:(?::[0-9a-f]{1,4}){0,5}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(?:%.+)?\s*$/i,
+  regex: regex
+};
+
+
+function date(str) {
+  // full-date from http://tools.ietf.org/html/rfc3339#section-5.6
+  var matches = str.match(DATE);
+  if (!matches) return false;
+
+  var month = +matches[1];
+  var day = +matches[2];
+  return month >= 1 && month <= 12 && day >= 1 && day <= DAYS[month];
+}
+
+
+function date_time(str) {
+  // http://tools.ietf.org/html/rfc3339#section-5.6
+  var dateTime = str.toLowerCase().split('t');
+  if (!date(dateTime[0])) return false;
+
+  var matches = dateTime[1].match(TIME);
+  if (!matches) return false;
+
+  var hour = matches[1];
+  var minute = matches[2];
+  var second = matches[3];
+  return hour <= 23 && minute <= 59 && second <= 59;
+}
+
+
+function hostname(str) {
+  // http://tools.ietf.org/html/rfc1034#section-3.5
+  return str.length <= 255 && HOSTNAME.test(str);
+}
+
+
+function uri(str) {
+  // http://jmrware.com/articles/2009/uri_regexp/URI_regex.html + optional protocol + required "."
+  return str.indexOf('.') >= 0 && URI.test(str);
+}
+
+
+function regex(str) {
+  try {
+    new RegExp(str);
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+},{"./util":9}],6:[function(require,module,exports){
+'use strict';
+
+var resolve = require('./resolve')
+  , util = require('./util')
+  , equal = require('./equal');
+
+try { var beautify = require('' + 'js-beautify').js_beautify; } catch(e) {}
+
+var RULES = require('./rules')
+  , validateGenerator = require('../dotjs/validate');
+
+module.exports = compile;
+
+
+function compile(schema, root, localRefs) {
+  var self = this
+    , refVal = [ undefined ] 
+    , refs = {};
+
+  root = root || { schema: schema, refVal: refVal, refs: refs };
+
+  var formats = this._formats;
+
+  return localCompile(schema, root, localRefs);
+
+
+  function localCompile(_schema, _root, localRefs) {
+    var isRoot = !_root || (_root && _root.schema == _schema);
+    if (_root.schema != root.schema)
+      return compile.call(self, _schema, _root, localRefs);
+
+    var validateCode = validateGenerator({
+      isTop: true,
+      schema: _schema,
+      isRoot: isRoot, 
+      root: _root,
+      schemaPath: '',
+      errorPath: '""',
+      dataPath: '',
+      RULES: RULES,
+      validate: validateGenerator,
+      util: util,
+      resolve: resolve,
+      resolveRef: resolveRef,
+      opts: self.opts,
+      formats: formats
+    });
+
+    if (self.opts.beautify) {
+      var opts = self.opts.beautify === true ? { indent_size: 2 } : self.opts.beautify;
+      if (beautify) validateCode = beautify(validateCode, opts);
+      else console.error('"npm install js-beautify" to use beautify option');
+    }
+    // console.log('\n\n\n *** \n', validateCode);
+    var validate;
+    try {
+      eval(validateCode);
+      refVal[0] = validate;
+    } catch(e) {
+      console.log('Error compiling schema, function code:', validateCode);
+      throw e;
+    }
+
+    validate.schema = _schema;
+    validate.errors = null;
+    validate.refs = refs;
+    validate.refVal = refVal;
+    validate.root = isRoot ? validate : _root;
+
+    return validate;
+  }
+
+  function resolveRef(baseId, ref, isRoot) {
+    ref = resolve.url(baseId, ref);
+    if (refs[ref]) return 'refVal[' + refs[ref] + ']';
+    if (!isRoot) {
+      var rootRefId = root.refs[ref];
+      if (rootRefId !== undefined)
+        return addLocalRef(ref, root.refVal[rootRefId]);
+    }
+
+    var refCode = addLocalRef(ref, compiledRef);
+    var v = resolve.call(self, localCompile, root, ref);
+    if (!v) {
+      var localSchema = localRefs[ref];
+      if (localSchema) v = compile.call(self, localSchema, root, localRefs);
+    }
+
+    if (v) {
+      replaceLocalRef(ref, v);
+      return refCode;
+    }
+
+    function compiledRef() {
+      var valid = v.apply(this, arguments);
+      compiledRef.errors = v.errors;
+      return valid;
+    }
+  }
+
+  function addLocalRef(ref, v) {
+    var refId = refVal.length;
+    refVal[refId] = v;
+    refs[ref] = refId;
+    return 'refVal[' + refId + ']';
+  }
+
+  function replaceLocalRef(ref, v) {
+    var refId = refs[ref];
+    refVal[refId] = v;
+  }
+}
+
+
+/**
+ * Functions below are used inside compiled validations function
+ */
+
+var ucs2length = util.ucs2length;
+
+},{"../dotjs/validate":32,"./equal":4,"./resolve":7,"./rules":8,"./util":9}],7:[function(require,module,exports){
+'use strict';
+
+var url = require('url')
+  , equal = require('./equal')
+  , util = require('./util');
+
+module.exports = resolve;
+
+resolve.normalizeId = normalizeId;
+resolve.fullPath = getFullPath;
+resolve.url = resolveUrl;
+resolve.ids = resolveIds;
+
+
+function resolve(compile, root, ref) {
+  var refVal = this._refs[ref];
+  if (typeof refVal == 'string') {
+    if (this._refs[refVal]) refVal = this._refs[refVal];
+    else return resolve.call(this, compile, root, refVal);
+  }
+  if (typeof refVal == 'function') return refVal;
+  var refVal = this._schemas[ref];
+  if (typeof refVal == 'function') return refVal;
+  var res = _resolve.call(this, root, ref);
+  if (res) {
+    var schema = res.schema;
+    root = res.root;
+  }
+  var v;
+  if (typeof schema == 'function') v = schema;
+  else if (schema) v = compile.call(this, schema, root);
+  if (v && ref[0] != '#') this._refs[ref] = v;
+  return v;
+};
+
+
+function _resolve(root, ref) {
+  var p = url.parse(ref, false, true)
+    , refPath = _getFullPath(p)
+    , baseId = getFullPath(root.schema.id);
+  if (refPath !== baseId) {
+    var id = normalizeId(refPath);
+    var refVal = this._refs[id];
+    if (typeof refVal == 'string') refVal = this._refs[refVal];
+    if (typeof refVal == 'function') root = refVal;
+    else {
+      var refVal = this._schemas[id];
+      if (typeof refVal == 'function') {
+        if (id == normalizeId(ref)) return { schema: refVal, root: root };
+        root = refVal;
+      }
+    }
+    if (!root.schema) return;
+    baseId = getFullPath(root.schema.id);
+  }
+  return getJsonPointer.call(this, p, baseId, root);
+}
+
+
+function getJsonPointer(parsedRef, baseId, root) {
+  parsedRef.hash = parsedRef.hash || '';
+  if (parsedRef.hash.slice(0,2) != '#/') return;
+  var parts = parsedRef.hash.split('/');
+  var schema = root.schema;
+
+  for (var i = 1; i < parts.length; i++) {
+    var part = parts[i];
+    if (part) {
+      part = unescapeFragment(part);
+      schema = schema[part];
+      if (!schema) break;
+      if (schema.id) baseId = resolveUrl(baseId, schema.id);
+      if (schema.$ref) {
+        var $ref = resolveUrl(baseId, schema.$ref);
+        var res = _resolve.call(this, root, $ref);
+        if (res) {
+          schema = res.schema;
+          root = res.root;
+        }
+      }
+    }
+  }
+  if (schema && schema != root.schema) return { schema: schema, root: root };
+}
+
+
+function unescapeFragment(str) {
+  return decodeURIComponent(str)
+          .replace(/~1/g, '/')
+          .replace(/~0/g, '~');
+}
+
+
+function escapeFragment(str) {
+  var str = str.replace(/~/g, '~0').replace(/\//g, '~1');
+  return encodeURIComponent(str);
+}
+
+
+function getFullPath(id, normalize) {
+  if (normalize !== false) id = normalizeId(id);
+  var p = url.parse(id, false, true);
+  return _getFullPath(p);
+}
+
+
+function _getFullPath(p) {
+  return (p.protocol||'') + (p.protocol?'//':'') + (p.host||'') + (p.path||'')  + '#';
+}
+
+
+var TRAILING_SLASH_HASH = /#\/?$/;
+function normalizeId(id) {
+    return id ? id.replace(TRAILING_SLASH_HASH, '') : '';
+}
+
+
+function resolveUrl(baseId, id) {
+  id = normalizeId(id);
+  return url.resolve(baseId, id);
+}
+
+
+function resolveIds(schema) {
+  var id = normalizeId(schema.id);
+  var localRefs = {};
+  _resolveIds.call(this, schema, getFullPath(id, false), id);
+  return localRefs;
+
+  function _resolveIds(schema, fullPath, baseId) {
+    if (Array.isArray(schema))
+      for (var i=0; i<schema.length; i++)
+        _resolveIds.call(this, schema[i], fullPath+'/'+i, baseId);
+    else if (schema && typeof schema == 'object') {
+      if (typeof schema.id == 'string') {
+        var id = baseId = baseId
+                          ? url.resolve(baseId, schema.id)
+                          : normalizeId(schema.id);
+
+        var refVal = this._refs[id];
+        if (typeof refVal == 'string') refVal = this._refs[refVal];
+        if (refVal && refVal.schema) {
+          if (!equal(schema, refVal.schema))
+            throw new Error('id "' + id + '" resolves to more than one schema');
+        } else if (id != normalizeId(fullPath)) {
+          if (id[0] == '#') {
+            if (localRefs[id] && !equal(schema, localRefs[id]))
+              throw new Error('id "' + id + '" resolves to more than one schema');
+            localRefs[id] = schema;
+          } else
+            this._refs[id] = fullPath;
+        }
+      }
+      for (var key in schema)
+        _resolveIds.call(this, schema[key], fullPath+'/'+escapeFragment(key), baseId);
+    }
+  }
+}
+
+},{"./equal":4,"./util":9,"url":93}],8:[function(require,module,exports){
+'use strict';
+
+var ruleModules = require('./_rules')
+  , util = require('./util');
+
+var RULES = module.exports = [
+  { type: 'number',
+    rules: [ 'maximum', 'minimum', 'multipleOf'] },
+  { type: 'string',
+    rules: [ 'maxLength', 'minLength', 'pattern', 'format' ] },
+  { type: 'array',
+    rules: [ 'maxItems', 'minItems', 'uniqueItems', 'items' ] },
+  { type: 'object',
+    rules: [ 'maxProperties', 'minProperties', 'required', 'dependencies', 'properties' ] },
+  { rules: [ '$ref', 'enum', 'not', 'anyOf', 'oneOf', 'allOf' ] }
+];
+
+RULES.all = [ 'type', 'additionalProperties', 'patternProperties' ];
+
+
+RULES.forEach(function (group) {
+  group.rules = group.rules.map(function (keyword) {
+    RULES.all.push(keyword);
+    return {
+      keyword: keyword,
+      code: ruleModules[keyword]
+    };
+  });
+});
+
+RULES.all = util.toHash(RULES.all);
+
+},{"./_rules":3,"./util":9}],9:[function(require,module,exports){
+'use strict';
+
+
+module.exports = {
+  copy: copy,
+  checkDataType: checkDataType,
+  checkDataTypes: checkDataTypes,
+  toHash: toHash,
+  getProperty: getProperty,
+  escapeQuotes: escapeQuotes,
+  escapeRegExp: escapeRegExp,
+  ucs2length: ucs2length,
+  varOccurences: varOccurences,
+  varReplace: varReplace,
+  cleanUpCode: cleanUpCode,
+  cleanUpVarErrors: cleanUpVarErrors,
+  schemaHasRules: schemaHasRules,
+  stableStringify: require('json-stable-stringify')
+};
+
+
+function copy(o, to) {
+  to = to || {};
+  for (var key in o) to[key] = o[key];
+  return to;
+}
+
+
+function checkDataType(dataType, data, negate) {
+  var EQUAL = negate ? ' !== ' : ' === '
+    , AND = negate ? ' || ' : ' && '
+    , OK = negate ? '!' : ''
+    , NOT = negate ? '' : '!';
+  switch (dataType) {
+    case 'null': return data + EQUAL + 'null';
+    case 'array': return OK + 'Array.isArray(' + data + ')';
+    case 'object': return '(' + OK + data + AND + 
+                          'typeof ' + data + EQUAL + '"object"' + AND + 
+                          NOT + 'Array.isArray(' + data + '))';
+    case 'integer': return '(typeof ' + data + EQUAL + '"number"' + AND + 
+                           NOT + '(' + data + ' % 1))'
+    default: return 'typeof ' + data + EQUAL + '"' + dataType + '"';
+  }
+}
+
+
+function checkDataTypes(dataTypes, data, negate) {
+  var EQUAL = negate ? ' !== ' : ' === '
+    , AND = negate ? ' || ' : ' && '
+    , OR = negate ? ' && ' : ' || '
+    , OK = negate ? '!' : '';
+  switch (dataTypes.length) {
+    case 0: return negate ? 'true' : 'false';
+    case 1: return checkDataType(dataTypes[0], data, negate);
+    default:
+      var code = ''
+      var types = toHash(dataTypes);
+      if (types.array && types.object) {
+        code = types.null ? '(': '(' + OK + data + AND
+        code += 'typeof ' + data + EQUAL + '"object")';
+        delete types.null;
+        delete types.array;
+        delete types.object;
+      }
+      if (types.number) delete types.integer;
+      for (var t in types)
+        code += (code ? OR : '' ) + checkDataType(t, data, negate);
+
+      return code;
+  }
+}
+
+
+function toHash(arr, func) {
+  var hash = {};
+  arr.forEach(function (item) {
+    if (func) item = func(item);
+    hash[item] = true;
+  });
+  return hash;
+}
+
+
+var IDENTIFIER = /^[a-z$_][a-z$_0-9]*$/i;
+var SINGLE_QUOTE = /('|\\)/g;
+function getProperty(key) {
+  return IDENTIFIER.test(key)
+          ? '.' + key
+          : "['" + key.replace(SINGLE_QUOTE, "\\$1") + "']";
+}
+
+
+function escapeQuotes(str) {
+  return str.replace(SINGLE_QUOTE, "\\$1");
+}
+
+
+var ESCAPE_REGEXP = /[\/]/g
+function escapeRegExp(str) {
+  return str.replace(ESCAPE_REGEXP, '\\$&');
+}
+
+
+// https://mathiasbynens.be/notes/javascript-encoding
+// https://github.com/bestiejs/punycode.js - punycode.ucs2.decode
+function ucs2length(str) {
+  var length = 0
+    , len = str.length
+    , pos = 0
+    , value;
+  while (pos < len) {
+    length++;
+    value = str.charCodeAt(pos++);
+    if (value >= 0xD800 && value <= 0xDBFF && pos < len) {
+      // high surrogate, and there is a next character
+      value = str.charCodeAt(pos);
+      if ((value & 0xFC00) == 0xDC00) pos++; // low surrogate
+    }
+  }
+  return length;
+}
+
+
+function varOccurences(str, dataVar) {
+  dataVar += '[^0-9]';
+  var matches = str.match(new RegExp(dataVar, 'g'));
+  return matches ? matches.length : 0;
+}
+
+
+function varReplace(str, dataVar, expr) {
+  dataVar += '([^0-9])';
+  return str.replace(new RegExp(dataVar, 'g'), expr + '$1')
+}
+
+
+var EMPTY_ELSE = /else\s*{\s*}/g
+  , EMPTY_IF_NO_ELSE = /if\s*\([^)]+\)\s*\{\s*\}(?!\s*else)/g
+  , EMPTY_IF_WITH_ELSE = /if\s*\(([^)]+)\)\s*\{\s*\}\s*else(?!\s*if)/g;
+function cleanUpCode(out) {
+  return out.replace(EMPTY_ELSE, '')
+            .replace(EMPTY_IF_NO_ELSE, '')
+            .replace(EMPTY_IF_WITH_ELSE, 'if (!($1))');
+}
+
+
+var ERRORS_REGEXP = /[^\.]errors/g
+  , VAR_ERRORS = 'var errors = 0;'
+  , INITIALIZE_ERRORS = 'validate.errors = null;'
+  , RETURN_ERRORS = 'return errors === 0;'
+function cleanUpVarErrors(out) {
+  var matches = out.match(ERRORS_REGEXP);
+  if (matches && matches.length === 2)
+    return out.replace(VAR_ERRORS, '')
+              .replace(INITIALIZE_ERRORS, '')
+              .replace(RETURN_ERRORS, INITIALIZE_ERRORS + ' return true;');
+  else
+    return out;
+}
+
+
+function schemaHasRules(schema, rules) {
+  for (var key in schema) if (rules[key]) return true;
+}
+
+},{"json-stable-stringify":35}],10:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['$ref'],
+    $schemaPath = it.schemaPath + '.' + '$ref',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('$ref') + '\'); ';
+  }
+  if ($schema == '#' || $schema == '#/') {
+    if (it.isRoot) {
+      if ($breakOnError && it.wasTop) {
+        out += ' if (! ' + ('validate') + '(' + ($data) + ', (dataPath || \'\') + ' + (it.errorPath) + ') ) return false; else { ';
+      } else {
+        out += ' var errors' + ($lvl) + ' = validate.errors; if (! ' + ('validate') + '(' + ($data) + ', (dataPath || \'\') + ' + (it.errorPath) + ') ) { if (errors' + ($lvl) + ' !== null) validate.errors = errors' + ($lvl) + '.concat(validate.errors); errors = validate.errors.length; } ';
+        if ($breakOnError) {
+          out += ' else { ';
+        }
+      }
+    } else {
+      out += '  if (! ' + ('root.refVal[0]') + '(' + ($data) + ', (dataPath || \'\') + ' + (it.errorPath) + ') ) { if (validate.errors === null) validate.errors = ' + ('root.refVal[0]') + '.errors; else validate.errors = validate.errors.concat(' + ('root.refVal[0]') + '.errors); errors = validate.errors.length; } ';
+      if ($breakOnError) {
+        out += ' else { ';
+      }
+    }
+  } else {
+    var $refVal = it.resolveRef(it.baseId, $schema, it.isRoot);
+    if ($refVal === undefined) {
+      var $message = 'can\'t resolve reference ' + $schema + ' from id ' + it.baseId;
+      if (it.opts.missingRefs == 'fail') {
+        console.log($message);
+        if (it.wasTop && $breakOnError) {
+          out += ' validate.errors = [ { keyword: \'' + ('$ref') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'can\\\'t resolve reference ' + (it.util.escapeQuotes($schema)) + '\' ';
+          if (it.opts.verbose) {
+            out += ', schema: \'' + (it.util.escapeQuotes($schema)) + '\', data: ' + ($data);
+          }
+          out += ' }]; return false; ';
+        } else {
+          out += '  var err =   { keyword: \'' + ('$ref') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'can\\\'t resolve reference ' + (it.util.escapeQuotes($schema)) + '\' ';
+          if (it.opts.verbose) {
+            out += ', schema: \'' + (it.util.escapeQuotes($schema)) + '\', data: ' + ($data);
+          }
+          out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+        }
+        if ($breakOnError) {
+          out += ' if (false) { ';
+        }
+      } else if (it.opts.missingRefs == 'ignore') {
+        console.log($message);
+        if ($breakOnError) {
+          out += ' if (true) { ';
+        }
+      } else {
+        throw new Error($message);
+      }
+    } else {
+      out += '  if (! ' + ($refVal) + '(' + ($data) + ', (dataPath || \'\') + ' + (it.errorPath) + ') ) { if (validate.errors === null) validate.errors = ' + ($refVal) + '.errors; else validate.errors = validate.errors.concat(' + ($refVal) + '.errors); errors = validate.errors.length; } ';
+      if ($breakOnError) {
+        out += ' else { ';
+      }
+    }
+  }
+  return out;
+}
+
+},{}],11:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['allOf'],
+    $schemaPath = it.schemaPath + '.' + 'allOf',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('allOf') + '\'); ';
+  }
+  var $it = it.util.copy(it),
+    $closingBraces = '';
+  $it.level++;
+  var arr1 = $schema;
+  if (arr1) {
+    var $sch, $i = -1,
+      l1 = arr1.length - 1;
+    while ($i < l1) {
+      $sch = arr1[$i += 1];
+      if (it.util.schemaHasRules($sch, it.RULES.all)) {
+        $it.schema = $sch;
+        $it.schemaPath = $schemaPath + '[' + $i + ']';
+        out += ' ' + (it.validate($it)) + ' ';
+        if ($breakOnError) {
+          out += ' if (valid' + ($it.level) + ') { ';
+          $closingBraces += '}';
+        }
+      }
+    }
+  }
+  if ($breakOnError) {
+    out += ' ' + ($closingBraces.slice(0, -1));
+  }
+  out = it.util.cleanUpCode(out);
+  return out;
+}
+
+},{}],12:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['anyOf'],
+    $schemaPath = it.schemaPath + '.' + 'anyOf',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('anyOf') + '\'); ';
+  }
+  var $it = it.util.copy(it),
+    $closingBraces = '';
+  $it.level++;
+  var $noEmptySchema = $schema.every(function($sch) {
+    return it.util.schemaHasRules($sch, it.RULES.all);
+  });
+  if ($noEmptySchema) {
+    out += ' var ' + ($errs) + ' = errors; var ' + ($valid) + ' = false; ';
+    var arr1 = $schema;
+    if (arr1) {
+      var $sch, $i = -1,
+        l1 = arr1.length - 1;
+      while ($i < l1) {
+        $sch = arr1[$i += 1];
+        $it.schema = $sch;
+        $it.schemaPath = $schemaPath + '[' + $i + ']';
+        out += ' ' + (it.validate($it)) + ' ' + ($valid) + ' = ' + ($valid) + ' || valid' + ($it.level) + '; if (!' + ($valid) + ') { ';
+        $closingBraces += '}';
+      }
+    }
+    out += ' ' + ($closingBraces) + ' if (!' + ($valid) + ') {  var err =   { keyword: \'' + ('anyOf') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should match some schema in anyOf\' ';
+    if (it.opts.verbose) {
+      out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; } else { errors = ' + ($errs) + '; if (validate.errors !== null) { if (' + ($errs) + ') validate.errors.length = ' + ($errs) + '; else validate.errors = null; } ';
+    if (it.opts.allErrors) {
+      out += ' } ';
+    }
+    out = it.util.cleanUpCode(out);
+  } else {
+    if ($breakOnError) {
+      out += ' if (true) { ';
+    }
+  }
+  return out;
+}
+
+},{}],13:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['dependencies'],
+    $schemaPath = it.schemaPath + '.' + 'dependencies',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('dependencies') + '\'); ';
+  }
+  var $it = it.util.copy(it),
+    $closingBraces = '';
+  $it.level++;
+  var $schemaDeps = {},
+    $propertyDeps = {};
+  for ($property in $schema) {
+    var $sch = $schema[$property];
+    var $deps = Array.isArray($sch) ? $propertyDeps : $schemaDeps;
+    $deps[$property] = $sch;
+  }
+  out += 'var ' + ($errs) + ' = errors;';
+  for (var $property in $propertyDeps) {
+    out += ' if (' + ($data) + (it.util.getProperty($property)) + ' !== undefined) { ';
+    $deps = $propertyDeps[$property];
+    out += ' if ( ';
+    var arr1 = $deps;
+    if (arr1) {
+      var $dep, $i = -1,
+        l1 = arr1.length - 1;
+      while ($i < l1) {
+        $dep = arr1[$i += 1];
+        if ($i) {
+          out += ' || ';
+        }
+        out += ' ' + ($data) + (it.util.getProperty($dep)) + ' === undefined ';
+      }
+    }
+    out += ') {  ';
+    if (it.wasTop && $breakOnError) {
+      out += ' validate.errors = [ { keyword: \'' + ('dependencies') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'';
+      if ($deps.length == 1) {
+        out += 'property ' + (it.util.escapeQuotes($deps[0])) + ' is';
+      } else {
+        out += 'properties ' + (it.util.escapeQuotes($deps.join(", "))) + ' are';
+      }
+      out += ' required when property ' + (it.util.escapeQuotes($property)) + ' is present\' ';
+      if (it.opts.verbose) {
+        out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+      }
+      out += ' }]; return false; ';
+    } else {
+      out += '  var err =   { keyword: \'' + ('dependencies') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'';
+      if ($deps.length == 1) {
+        out += 'property ' + (it.util.escapeQuotes($deps[0])) + ' is';
+      } else {
+        out += 'properties ' + (it.util.escapeQuotes($deps.join(", "))) + ' are';
+      }
+      out += ' required when property ' + (it.util.escapeQuotes($property)) + ' is present\' ';
+      if (it.opts.verbose) {
+        out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+      }
+      out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+    }
+    out += ' }   ';
+    if ($breakOnError) {
+      $closingBraces += '}';
+      out += ' else { ';
+    }
+    out += ' }';
+  }
+  for (var $property in $schemaDeps) {
+    var $sch = $schemaDeps[$property];
+    if (it.util.schemaHasRules($sch, it.RULES.all)) {
+      out += ' valid' + ($it.level) + ' = true; if (' + ($data) + '[\'' + ($property) + '\'] !== undefined) { ';
+      $it.schema = $sch;
+      $it.schemaPath = $schemaPath + it.util.getProperty($property);
+      out += ' ' + (it.validate($it)) + ' }  ';
+      if ($breakOnError) {
+        out += ' if (valid' + ($it.level) + ') { ';
+        $closingBraces += '}';
+      }
+    }
+  }
+  if ($breakOnError) {
+    out += '   ' + ($closingBraces) + ' if (' + ($errs) + ' == errors) {';
+  }
+  out = it.util.cleanUpCode(out);
+  return out;
+}
+
+},{}],14:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['enum'],
+    $schemaPath = it.schemaPath + '.' + 'enum',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('enum') + '\'); ';
+  }
+  var $i = 'i' + $lvl;
+  out += 'var enumSchema' + ($lvl) + ' = validate.schema' + ($schemaPath) + ' , ' + ($valid) + ' = false;for (var ' + ($i) + '=0; ' + ($i) + '<enumSchema' + ($lvl) + '.length; ' + ($i) + '++) if (equal(' + ($data) + ', enumSchema' + ($lvl) + '[' + ($i) + '])) { ' + ($valid) + ' = true; break; } if (!' + ($valid) + ') {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('enum') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be equal to one of values\' ';
+    if (it.opts.verbose) {
+      out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('enum') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be equal to one of values\' ';
+    if (it.opts.verbose) {
+      out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += ' }';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],15:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['format'],
+    $schemaPath = it.schemaPath + '.' + 'format',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('format') + '\'); ';
+  }
+  var $format = it.formats[$schema];
+  if (it.opts.format !== false && $format) {
+    out += ' if (!   ';
+    if (typeof $format == 'function') {
+      out += ' formats' + (it.util.getProperty($schema)) + ' (' + ($data) + ') ';
+    } else {
+      out += ' formats' + (it.util.getProperty($schema)) + ' .test(' + ($data) + ') ';
+    }
+    out += ') {  ';
+    if (it.wasTop && $breakOnError) {
+      out += ' validate.errors = [ { keyword: \'' + ('format') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should match format ' + (it.util.escapeQuotes($schema)) + '\' ';
+      if (it.opts.verbose) {
+        out += ', schema: \'' + (it.util.escapeQuotes($schema)) + '\', data: ' + ($data);
+      }
+      out += ' }]; return false; ';
+    } else {
+      out += '  var err =   { keyword: \'' + ('format') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should match format ' + (it.util.escapeQuotes($schema)) + '\' ';
+      if (it.opts.verbose) {
+        out += ', schema: \'' + (it.util.escapeQuotes($schema)) + '\', data: ' + ($data);
+      }
+      out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+    }
+    out += ' } ';
+    if ($breakOnError) {
+      out += ' else { ';
+    }
+  } else {
+    if ($breakOnError) {
+      out += ' if (true) { ';
+    }
+  }
+  return out;
+}
+
+},{}],16:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['items'],
+    $schemaPath = it.schemaPath + '.' + 'items',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('items') + '\'); ';
+  }
+  var $it = it.util.copy(it),
+    $closingBraces = '';
+  $it.level++;
+  var $dataNxt = $it.dataLevel = it.dataLevel + 1,
+    $nextData = 'data' + $dataNxt;
+  out += 'var ' + ($errs) + ' = errors;var ' + ($valid) + ';';
+  if (Array.isArray($schema)) {
+    var $additionalItems = it.schema.additionalItems;
+    if ($additionalItems === false) {
+      out += ' ' + ($valid) + ' = ' + ($data) + '.length <= ' + ($schema.length) + ';  if (!' + ($valid) + ') {  ';
+      if (it.wasTop && $breakOnError) {
+        out += ' validate.errors = [ { keyword: \'' + ('additionalItems') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT have more than ' + ($schema.length) + ' items\' ';
+        if (it.opts.verbose) {
+          out += ', schema: false, data: ' + ($data);
+        }
+        out += ' }]; return false; ';
+      } else {
+        out += '  var err =   { keyword: \'' + ('additionalItems') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT have more than ' + ($schema.length) + ' items\' ';
+        if (it.opts.verbose) {
+          out += ', schema: false, data: ' + ($data);
+        }
+        out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+      }
+      out += ' }  ';
+      if ($breakOnError) {
+        $closingBraces += '}';
+        out += ' else { ';
+      }
+    }
+    var arr1 = $schema;
+    if (arr1) {
+      var $sch, $i = -1,
+        l1 = arr1.length - 1;
+      while ($i < l1) {
+        $sch = arr1[$i += 1];
+        if (it.util.schemaHasRules($sch, it.RULES.all)) {
+          out += ' valid' + ($it.level) + ' = true;  if (' + ($data) + '.length > ' + ($i) + ') { ';
+          $it.schema = $sch;
+          $it.schemaPath = $schemaPath + '[' + $i + ']';
+          $it.errorPath = (it.errorPath + ' + "[' + $i + ']"').replace('" + "', '');
+          $it.dataPath = it.dataPath + '[' + $i + ']';
+          var $passData = $data + '[' + $i + ']';
+          var $code = it.validate($it);
+          if (it.util.varOccurences($code, $nextData) < 2) {
+            out += ' ' + (it.util.varReplace($code, $nextData, $passData)) + ' ';
+          } else {
+            out += ' var ' + ($nextData) + ' = ' + ($passData) + '; ' + ($code) + ' ';
+          }
+          out += ' }  ';
+          if ($breakOnError) {
+            out += ' if (valid' + ($it.level) + ') { ';
+            $closingBraces += '}';
+          }
+        }
+      }
+    }
+    if (typeof $additionalItems == 'object' && it.util.schemaHasRules($additionalItems, it.RULES.all)) {
+      $it.schema = $additionalItems;
+      $it.schemaPath = it.schemaPath + '.additionalItems';
+      out += ' valid' + ($it.level) + ' = true; if (' + ($data) + '.length > ' + ($schema.length) + ') {  for (var i' + ($lvl) + ' = ' + ($schema.length) + '; i' + ($lvl) + ' < ' + ($data) + '.length; i' + ($lvl) + '++) { ';
+      $it.errorPath = (it.errorPath + ' + "[" + i' + $lvl + ' + "]"').replace('" + "', '');
+      $it.dataPath = it.dataPath + '[i' + $lvl + ']';
+      var $passData = $data + '[i' + $lvl + ']';
+      var $code = it.validate($it);
+      if (it.util.varOccurences($code, $nextData) < 2) {
+        out += ' ' + (it.util.varReplace($code, $nextData, $passData)) + ' ';
+      } else {
+        out += ' var ' + ($nextData) + ' = ' + ($passData) + '; ' + ($code) + ' ';
+      }
+      if ($breakOnError) {
+        out += ' if (!valid' + ($it.level) + ') break; ';
+      }
+      out += ' } }  ';
+      if ($breakOnError) {
+        out += ' if (valid' + ($it.level) + ') { ';
+        $closingBraces += '}';
+      }
+    }
+  } else if (it.util.schemaHasRules($schema, it.RULES.all)) {
+    $it.schema = $schema;
+    $it.schemaPath = $schemaPath;
+    out += '  for (var i' + ($lvl) + ' = ' + (0) + '; i' + ($lvl) + ' < ' + ($data) + '.length; i' + ($lvl) + '++) { ';
+    $it.errorPath = (it.errorPath + ' + "[" + i' + $lvl + ' + "]"').replace('" + "', '');
+    $it.dataPath = it.dataPath + '[i' + $lvl + ']';
+    var $passData = $data + '[i' + $lvl + ']';
+    var $code = it.validate($it);
+    if (it.util.varOccurences($code, $nextData) < 2) {
+      out += ' ' + (it.util.varReplace($code, $nextData, $passData)) + ' ';
+    } else {
+      out += ' var ' + ($nextData) + ' = ' + ($passData) + '; ' + ($code) + ' ';
+    }
+    if ($breakOnError) {
+      out += ' if (!valid' + ($it.level) + ') break; ';
+    }
+    out += ' }  ';
+    if ($breakOnError) {
+      out += ' if (valid' + ($it.level) + ') { ';
+      $closingBraces += '}';
+    }
+  }
+  if ($breakOnError) {
+    out += ' ' + ($closingBraces) + ' if (' + ($errs) + ' == errors) {';
+  }
+  out = it.util.cleanUpCode(out);
+  return out;
+}
+
+},{}],17:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['maxItems'],
+    $schemaPath = it.schemaPath + '.' + 'maxItems',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('maxItems') + '\'); ';
+  }
+  out += 'if (' + ($data) + '.length > ' + ($schema) + ') {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('maxItems') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT have more than ' + ($schema) + ' items\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('maxItems') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT have more than ' + ($schema) + ' items\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} ';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],18:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['maxLength'],
+    $schemaPath = it.schemaPath + '.' + 'maxLength',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('maxLength') + '\'); ';
+  }
+  out += 'if ( ';
+  if (it.opts.unicode === false) {
+    out += ' ' + ($data) + '.length ';
+  } else {
+    out += ' ucs2length(' + ($data) + ') ';
+  }
+  out += ' > ' + ($schema) + ') {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('maxLength') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT be longer than ' + ($schema) + ' characters\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('maxLength') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT be longer than ' + ($schema) + ' characters\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} ';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],19:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['maxProperties'],
+    $schemaPath = it.schemaPath + '.' + 'maxProperties',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('maxProperties') + '\'); ';
+  }
+  out += 'if (Object.keys(' + ($data) + ').length > ' + ($schema) + ') {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('maxProperties') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT have more than ' + ($schema) + ' properties\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('maxProperties') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT have more than ' + ($schema) + ' properties\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} ';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],20:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['maximum'],
+    $schemaPath = it.schemaPath + '.' + 'maximum',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('maximum') + '\'); ';
+  }
+  var $exclusive = it.schema.exclusiveMaximum === true,
+    $op = $exclusive ? '<' : '<=',
+    $notOp = $exclusive ? '>=' : '>';
+  out += 'if (' + ($data) + ' ' + ($notOp) + ' ' + ($schema) + ') {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('maximum') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be ' + ($op) + ' ' + ($schema) + '\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('maximum') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be ' + ($op) + ' ' + ($schema) + '\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} ';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],21:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['minItems'],
+    $schemaPath = it.schemaPath + '.' + 'minItems',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('minItems') + '\'); ';
+  }
+  out += 'if (' + ($data) + '.length < ' + ($schema) + ') {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('minItems') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT have less than ' + ($schema) + ' items\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('minItems') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT have less than ' + ($schema) + ' items\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} ';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],22:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['minLength'],
+    $schemaPath = it.schemaPath + '.' + 'minLength',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('minLength') + '\'); ';
+  }
+  out += 'if ( ';
+  if (it.opts.unicode === false) {
+    out += ' ' + ($data) + '.length ';
+  } else {
+    out += ' ucs2length(' + ($data) + ') ';
+  }
+  out += ' < ' + ($schema) + ') {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('minLength') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT be shorter than ' + ($schema) + ' characters\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('minLength') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT be shorter than ' + ($schema) + ' characters\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} ';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],23:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['minProperties'],
+    $schemaPath = it.schemaPath + '.' + 'minProperties',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('minProperties') + '\'); ';
+  }
+  out += 'if (Object.keys(' + ($data) + ').length < ' + ($schema) + ') {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('minProperties') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT have less than ' + ($schema) + ' properties\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('minProperties') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT have less than ' + ($schema) + ' properties\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} ';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],24:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['minimum'],
+    $schemaPath = it.schemaPath + '.' + 'minimum',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('minimum') + '\'); ';
+  }
+  var $exclusive = it.schema.exclusiveMinimum === true,
+    $op = $exclusive ? '>' : '>=',
+    $notOp = $exclusive ? '<=' : '<';
+  out += 'if (' + ($data) + ' ' + ($notOp) + ' ' + ($schema) + ') {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('minimum') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be ' + ($op) + ' ' + ($schema) + '\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('minimum') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be ' + ($op) + ' ' + ($schema) + '\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} ';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],25:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['multipleOf'],
+    $schemaPath = it.schemaPath + '.' + 'multipleOf',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('multipleOf') + '\'); ';
+  }
+  out += 'var division' + ($lvl) + ' = ' + ($data) + ' / ' + ($schema) + ';if (' + ($data) + ' / ' + ($schema) + ' !== parseInt(division' + ($lvl) + ')) {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('multipleOf') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be multiple of ' + ($schema) + '\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('multipleOf') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be multiple of ' + ($schema) + '\' ';
+    if (it.opts.verbose) {
+      out += ', schema: ' + ($schema) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} ';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],26:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['not'],
+    $schemaPath = it.schemaPath + '.' + 'not',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('not') + '\'); ';
+  }
+  var $it = it.util.copy(it),
+    $closingBraces = '';
+  $it.level++;
+  if (it.util.schemaHasRules($schema, it.RULES.all)) {
+    $it.schema = $schema;
+    $it.schemaPath = $schemaPath;
+    out += ' var ' + ($errs) + ' = errors; ' + (it.validate($it)) + ' if (valid' + ($it.level) + ') {  ';
+    if (it.wasTop && $breakOnError) {
+      out += ' validate.errors = [ { keyword: \'' + ('not') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT be valid\' ';
+      if (it.opts.verbose) {
+        out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+      }
+      out += ' }]; return false; ';
+    } else {
+      out += '  var err =   { keyword: \'' + ('not') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT be valid\' ';
+      if (it.opts.verbose) {
+        out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+      }
+      out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+    }
+    out += ' } else { errors = ' + ($errs) + '; if (validate.errors !== null) { if (' + ($errs) + ') validate.errors.length = ' + ($errs) + '; else validate.errors = null; } ';
+    if (it.opts.allErrors) {
+      out += ' } ';
+    }
+  } else {
+    if (it.wasTop && $breakOnError) {
+      out += ' validate.errors = [ { keyword: \'' + ('not') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT be valid\' ';
+      if (it.opts.verbose) {
+        out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+      }
+      out += ' }]; return false; ';
+    } else {
+      out += '  var err =   { keyword: \'' + ('not') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should NOT be valid\' ';
+      if (it.opts.verbose) {
+        out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+      }
+      out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+    }
+    if ($breakOnError) {
+      out += ' if (false) { ';
+    }
+  }
+  return out;
+}
+
+},{}],27:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['oneOf'],
+    $schemaPath = it.schemaPath + '.' + 'oneOf',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('oneOf') + '\'); ';
+  }
+  var $it = it.util.copy(it),
+    $closingBraces = '';
+  $it.level++;
+  out += 'var ' + ($errs) + ' = errors;var prevValid' + ($lvl) + ' = false;var ' + ($valid) + ' = false;';
+  var arr1 = $schema;
+  if (arr1) {
+    var $sch, $i = -1,
+      l1 = arr1.length - 1;
+    while ($i < l1) {
+      $sch = arr1[$i += 1];
+      if (it.util.schemaHasRules($sch, it.RULES.all)) {
+        $it.schema = $sch;
+        $it.schemaPath = $schemaPath + '[' + $i + ']';
+        out += ' ' + (it.validate($it)) + ' ';
+      } else {
+        out += ' var valid' + ($it.level) + ' = true; ';
+      }
+      if ($i) {
+        out += ' if (valid' + ($it.level) + ' && prevValid' + ($lvl) + ') ' + ($valid) + ' = false; else { ';
+        $closingBraces += '}';
+      }
+      out += ' if (valid' + ($it.level) + ') ' + ($valid) + ' = prevValid' + ($lvl) + ' = true;';
+    }
+  }
+  out += '' + ($closingBraces) + 'if (!' + ($valid) + ') {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('oneOf') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should match exactly one schema in oneOf\' ';
+    if (it.opts.verbose) {
+      out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('oneOf') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should match exactly one schema in oneOf\' ';
+    if (it.opts.verbose) {
+      out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} else { errors = ' + ($errs) + '; if (validate.errors !== null) { if (' + ($errs) + ') validate.errors.length = ' + ($errs) + '; else validate.errors = null; }';
+  if (it.opts.allErrors) {
+    out += ' } ';
+  }
+  return out;
+}
+
+},{}],28:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['pattern'],
+    $schemaPath = it.schemaPath + '.' + 'pattern',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('pattern') + '\'); ';
+  }
+  new RegExp($schema);
+  out += 'if (! /' + (it.util.escapeRegExp($schema)) + '/.test(' + ($data) + ') ) {  ';
+  if (it.wasTop && $breakOnError) {
+    out += ' validate.errors = [ { keyword: \'' + ('pattern') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should match pattern "' + (it.util.escapeQuotes($schema)) + '"\' ';
+    if (it.opts.verbose) {
+      out += ', schema: \'' + (it.util.escapeQuotes($schema)) + '\', data: ' + ($data);
+    }
+    out += ' }]; return false; ';
+  } else {
+    out += '  var err =   { keyword: \'' + ('pattern') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should match pattern "' + (it.util.escapeQuotes($schema)) + '"\' ';
+    if (it.opts.verbose) {
+      out += ', schema: \'' + (it.util.escapeQuotes($schema)) + '\', data: ' + ($data);
+    }
+    out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+  }
+  out += '} ';
+  if ($breakOnError) {
+    out += ' else { ';
+  }
+  return out;
+}
+
+},{}],29:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['properties'],
+    $schemaPath = it.schemaPath + '.' + 'properties',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('properties') + '\'); ';
+  }
+  var $it = it.util.copy(it),
+    $closingBraces = '';
+  $it.level++;
+  var $dataNxt = $it.dataLevel = it.dataLevel + 1,
+    $nextData = 'data' + $dataNxt;
+  var $pProperties = it.schema.patternProperties || {},
+    $pPropertyKeys = Object.keys($pProperties),
+    $aProperties = it.schema.additionalProperties,
+    $noAdditional = $aProperties === false,
+    $additionalIsSchema = typeof $aProperties == 'object' && Object.keys($aProperties).length,
+    $removeAdditional = it.opts.removeAdditional,
+    $checkAdditional = $noAdditional || $additionalIsSchema || $removeAdditional;
+  out += 'var ' + ($errs) + ' = errors;var valid' + ($it.level) + ' = true;';
+  if ($checkAdditional) {
+    out += ' var propertiesSchema' + ($lvl) + ' = validate.schema' + ($schemaPath) + ' || {}; for (var key' + ($lvl) + ' in ' + ($data) + ') { var isAdditional' + ($lvl) + ' = propertiesSchema' + ($lvl) + '[key' + ($lvl) + '] === undefined; ';
+    if ($pPropertyKeys.length) {
+      out += ' if (isAdditional' + ($lvl) + ') { ';
+      var arr1 = $pPropertyKeys;
+      if (arr1) {
+        var $pProperty, $i = -1,
+          l1 = arr1.length - 1;
+        while ($i < l1) {
+          $pProperty = arr1[$i += 1];
+          out += ' if (/' + (it.util.escapeRegExp($pProperty)) + '/.test(key' + ($lvl) + ')) isAdditional' + ($lvl) + ' = false; ';
+          if ($i < $pPropertyKeys.length - 1) {
+            out += ' else ';
+          }
+        }
+      }
+      out += ' } ';
+    }
+    out += ' if (isAdditional' + ($lvl) + ') { ';
+    if ($removeAdditional == 'all') {
+      out += ' delete ' + ($data) + '[key' + ($lvl) + ']; ';
+    } else {
+      var $currentErrorPath = it.errorPath;
+      it.errorPath = (it.errorPath + ' + "[\'" + key' + $lvl + ' + "\']"').replace('" + "', '');
+      if ($noAdditional) {
+        if ($removeAdditional) {
+          out += ' delete ' + ($data) + '[key' + ($lvl) + ']; ';
+        } else {
+          out += ' valid' + ($it.level) + ' = false;  ';
+          if (it.wasTop && $breakOnError) {
+            out += ' validate.errors = [ { keyword: \'' + ('additionalProperties') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'additional properties NOT allowed\' ';
+            if (it.opts.verbose) {
+              out += ', schema: false, data: ' + ($data);
+            }
+            out += ' }]; return false; ';
+          } else {
+            out += '  var err =   { keyword: \'' + ('additionalProperties') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'additional properties NOT allowed\' ';
+            if (it.opts.verbose) {
+              out += ', schema: false, data: ' + ($data);
+            }
+            out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+          }
+          if ($breakOnError) {
+            out += ' break; ';
+          }
+        }
+      } else if ($additionalIsSchema) {
+        if ($removeAdditional == 'failing') {
+          out += ' var ' + ($errs) + ' = errors; ';
+        }
+        $it.schema = $aProperties;
+        $it.schemaPath = it.schemaPath + '.additionalProperties';
+        $it.errorPath = it.errorPath;
+        $it.dataPath = it.dataPath + '[key' + $lvl + ']';
+        var $passData = $data + '[key' + $lvl + ']';
+        var $code = it.validate($it);
+        if (it.util.varOccurences($code, $nextData) < 2) {
+          out += ' ' + (it.util.varReplace($code, $nextData, $passData)) + ' ';
+        } else {
+          out += ' var ' + ($nextData) + ' = ' + ($passData) + '; ' + ($code) + ' ';
+        }
+        if ($removeAdditional == 'failing') {
+          out += ' if (!valid' + ($it.level) + ') { errors = ' + ($errs) + '; if (validate.errors !== null) { if (errors) validate.errors.length = errors; else validate.errors = null; } delete ' + ($data) + '[key' + ($lvl) + ']; } ';
+        } else {
+          if ($breakOnError) {
+            out += ' if (!valid' + ($it.level) + ') break; ';
+          }
+        }
+      }
+      it.errorPath = $currentErrorPath;
+    }
+    out += ' } }  ';
+    if ($breakOnError) {
+      out += ' if (valid' + ($it.level) + ') { ';
+      $closingBraces += '}';
+    }
+  }
+  if ($schema) {
+    for (var $propertyKey in $schema) {
+      var $sch = $schema[$propertyKey];
+      if (it.util.schemaHasRules($sch, it.RULES.all)) {
+        $it.schema = $sch;
+        var $prop = it.util.getProperty($propertyKey),
+          $passData = $data + $prop;
+        $it.schemaPath = $schemaPath + $prop;
+        $it.errorPath = (it.errorPath + ' + "' + $prop + '"').replace('" + "', '');
+        $it.dataPath = it.dataPath + $prop;
+        var $code = it.validate($it);
+        if (it.util.varOccurences($code, $nextData) < 2) {
+          $code = it.util.varReplace($code, $nextData, $passData);
+          var $useData = $passData;
+        } else {
+          var $useData = $nextData;
+          out += ' var ' + ($nextData) + ' = ' + ($passData) + '; ';
+        }
+        if ($breakOnError) {
+          out += ' if (' + ($useData) + ' === undefined) { valid' + ($it.level) + ' = true; } else { ';
+        } else {
+          out += ' if (' + ($useData) + ' !== undefined) { ';
+        }
+        out += ' ' + ($code) + ' } ';
+      }
+      if ($breakOnError) {
+        out += ' if (valid' + ($it.level) + ') { ';
+        $closingBraces += '}';
+      }
+    }
+  }
+  var arr2 = $pPropertyKeys;
+  if (arr2) {
+    var $pProperty, i2 = -1,
+      l2 = arr2.length - 1;
+    while (i2 < l2) {
+      $pProperty = arr2[i2 += 1];
+      var $sch = $pProperties[$pProperty];
+      if (it.util.schemaHasRules($sch, it.RULES.all)) {
+        $it.schema = $sch;
+        $it.schemaPath = it.schemaPath + '.patternProperties' + it.util.getProperty($pProperty);
+        out += ' for (var key' + ($lvl) + ' in ' + ($data) + ') { if (/' + (it.util.escapeRegExp($pProperty)) + '/.test(key' + ($lvl) + ')) { ';
+        $it.errorPath = (it.errorPath + ' + "[\'" + key' + $lvl + ' + "\']"').replace('" + "', '');
+        $it.dataPath = it.dataPath + '[key' + $lvl + ']';
+        var $passData = $data + '[key' + $lvl + ']';
+        var $code = it.validate($it);
+        if (it.util.varOccurences($code, $nextData) < 2) {
+          out += ' ' + (it.util.varReplace($code, $nextData, $passData)) + ' ';
+        } else {
+          out += ' var ' + ($nextData) + ' = ' + ($passData) + '; ' + ($code) + ' ';
+        }
+        if ($breakOnError) {
+          out += ' if (!valid' + ($it.level) + ') break; ';
+        }
+        out += ' } ';
+        if ($breakOnError) {
+          out += ' else valid' + ($it.level) + ' = true; ';
+        }
+        out += ' }  ';
+        if ($breakOnError) {
+          out += ' if (valid' + ($it.level) + ') { ';
+          $closingBraces += '}';
+        }
+      }
+    }
+  }
+  if ($breakOnError) {
+    out += ' ' + ($closingBraces) + ' if (' + ($errs) + ' == errors) {';
+  }
+  out = it.util.cleanUpCode(out);
+  return out;
+}
+
+},{}],30:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['required'],
+    $schemaPath = it.schemaPath + '.' + 'required',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('required') + '\'); ';
+  }
+  var $currentErrorPath = it.errorPath;
+  if ($breakOnError) {
+    out += ' var missing' + ($lvl) + '; ';
+    if ($schema.length <= 20) {
+      out += ' if ( ';
+      var arr1 = $schema;
+      if (arr1) {
+        var $property, $i = -1,
+          l1 = arr1.length - 1;
+        while ($i < l1) {
+          $property = arr1[$i += 1];
+          if ($i) {
+            out += ' || ';
+          }
+          var $prop = it.util.getProperty($property);
+          out += ' ( ' + ($data) + ($prop) + ' === undefined && (missing' + ($lvl) + ' = \'' + (it.util.escapeQuotes($prop)) + '\') ) ';
+        }
+      }
+      out += ') { ';
+      var $propertyPath = ' + missing' + $lvl,
+        $missingProperty = '\'' + $propertyPath + ' + \'';
+      it.errorPath = $currentErrorPath + $propertyPath;
+      if (it.wasTop && $breakOnError) {
+        out += ' validate.errors = [ { keyword: \'' + ('required') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'property ' + ($missingProperty) + ' is required\' ';
+        if (it.opts.verbose) {
+          out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+        }
+        out += ' }]; return false; ';
+      } else {
+        out += '  var err =   { keyword: \'' + ('required') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'property ' + ($missingProperty) + ' is required\' ';
+        if (it.opts.verbose) {
+          out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+        }
+        out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+      }
+      out += ' } else { ';
+    } else {
+      out += '  var schema' + ($lvl) + ' = validate.schema' + ($schemaPath) + '; ';
+      var $i = 'i' + $lvl,
+        $propertyPath = ' + schema' + $lvl + '[' + $i + '] + ',
+        $missingProperty = '\' + "\'"' + $propertyPath + '"\'" + \'';
+      it.errorPath = ($currentErrorPath + ' + "[\'"' + $propertyPath + '"\']"').replace('" + "', '');
+      out += ' for (var ' + ($i) + ' = 0; ' + ($i) + ' < schema' + ($lvl) + '.length; ' + ($i) + '++) { var ' + ($valid) + ' = ' + ($data) + '[schema' + ($lvl) + '[' + ($i) + ']] !== undefined; if (!' + ($valid) + ') break; }  if (!' + ($valid) + ') {  ';
+      if (it.wasTop && $breakOnError) {
+        out += ' validate.errors = [ { keyword: \'' + ('required') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'property ' + ($missingProperty) + ' is required\' ';
+        if (it.opts.verbose) {
+          out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+        }
+        out += ' }]; return false; ';
+      } else {
+        out += '  var err =   { keyword: \'' + ('required') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'property ' + ($missingProperty) + ' is required\' ';
+        if (it.opts.verbose) {
+          out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+        }
+        out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+      }
+      out += ' } else { ';
+    }
+  } else {
+    if ($schema.length <= 10) {
+      var arr2 = $schema;
+      if (arr2) {
+        var $property, $i = -1,
+          l2 = arr2.length - 1;
+        while ($i < l2) {
+          $property = arr2[$i += 1];
+          var $prop = it.util.getProperty($property),
+            $missingProperty = it.util.escapeQuotes($prop);
+          it.errorPath = ($currentErrorPath + ' + \'' + $missingProperty + '\'').replace('" + "', '');
+          out += ' if (' + ($data) + ($prop) + ' === undefined) {  ';
+          if (it.wasTop && $breakOnError) {
+            out += ' validate.errors = [ { keyword: \'' + ('required') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'property ' + ($missingProperty) + ' is required\' ';
+            if (it.opts.verbose) {
+              out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+            }
+            out += ' }]; return false; ';
+          } else {
+            out += '  var err =   { keyword: \'' + ('required') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'property ' + ($missingProperty) + ' is required\' ';
+            if (it.opts.verbose) {
+              out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+            }
+            out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+          }
+          out += ' } ';
+        }
+      }
+    } else {
+      out += '  var schema' + ($lvl) + ' = validate.schema' + ($schemaPath) + '; ';
+      var $i = 'i' + $lvl,
+        $propertyPath = ' + schema' + $lvl + '[' + $i + '] + ',
+        $missingProperty = '\' + "\'"' + $propertyPath + '"\'" + \'';
+      it.errorPath = ($currentErrorPath + ' + "[\'"' + $propertyPath + '"\']"').replace('" + "', '');
+      out += ' for (var ' + ($i) + ' = 0; ' + ($i) + ' < schema' + ($lvl) + '.length; ' + ($i) + '++) { if (' + ($data) + '[schema' + ($lvl) + '[' + ($i) + ']] === undefined) {  ';
+      if (it.wasTop && $breakOnError) {
+        out += ' validate.errors = [ { keyword: \'' + ('required') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'property ' + ($missingProperty) + ' is required\' ';
+        if (it.opts.verbose) {
+          out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+        }
+        out += ' }]; return false; ';
+      } else {
+        out += '  var err =   { keyword: \'' + ('required') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'property ' + ($missingProperty) + ' is required\' ';
+        if (it.opts.verbose) {
+          out += ', schema: validate.schema' + ($schemaPath) + ', data: ' + ($data);
+        }
+        out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+      }
+      out += ' } } ';
+    }
+  }
+  it.errorPath = $currentErrorPath;
+  return out;
+}
+
+},{}],31:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = ' ';
+  var $lvl = it.level,
+    $dataLvl = it.dataLevel,
+    $schema = it.schema['uniqueItems'],
+    $schemaPath = it.schemaPath + '.' + 'uniqueItems',
+    $breakOnError = !it.opts.allErrors;
+  var $data = 'data' + ($dataLvl || ''),
+    $valid = 'valid' + $lvl,
+    $errs = 'errs' + $lvl;
+  if (it.opts._debug) {
+    out += ' console.log(\'Keyword ' + ('uniqueItems') + '\'); ';
+  }
+  if ($schema && it.opts.uniqueItems !== false) {
+    out += ' var ' + ($valid) + ' = true; if (' + ($data) + '.length > 1) { var i = ' + ($data) + '.length, j; outer: for (;i--;) { for (j = i; j--;) { if (equal(' + ($data) + '[i], ' + ($data) + '[j])) { ' + ($valid) + ' = false; break outer; } } } } if (!' + ($valid) + ') {  ';
+    if (it.wasTop && $breakOnError) {
+      out += ' validate.errors = [ { keyword: \'' + ('uniqueItems') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'items ## \' + j + \' and \' + i + \' are duplicate\' ';
+      if (it.opts.verbose) {
+        out += ', schema: ' + ($schema) + ', data: ' + ($data);
+      }
+      out += ' }]; return false; ';
+    } else {
+      out += '  var err =   { keyword: \'' + ('uniqueItems') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'items ## \' + j + \' and \' + i + \' are duplicate\' ';
+      if (it.opts.verbose) {
+        out += ', schema: ' + ($schema) + ', data: ' + ($data);
+      }
+      out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+    }
+    out += ' } ';
+    if ($breakOnError) {
+      out += ' else { ';
+    }
+  } else {
+    if ($breakOnError) {
+      out += ' if (true) { ';
+    }
+  }
+  return out;
+}
+
+},{}],32:[function(require,module,exports){
+'use strict';
+module.exports = function anonymous(it) {
+  var out = '';
+  if (it.isTop) {
+    var $top = it.isTop,
+      $lvl = it.level = 0,
+      $dataLvl = it.dataLevel = 0,
+      $data = 'data';
+    it.rootId = it.baseId = it.resolve.fullPath(it.root.schema.id);
+    delete it.isTop;
+    it.wasTop = true;
+    out += ' validate = function (data, dataPath) { \'use strict\'; validate.errors = null;';
+    out += ' var errors = 0;        ';
+  } else {
+    if (it.opts._debug) {
+      out += ' console.log(\'validate dataPath:\', dataPath); ';
+    }
+    var $lvl = it.level,
+      $dataLvl = it.dataLevel,
+      $data = 'data' + ($dataLvl || '');
+    if (it.schema.id) it.baseId = it.resolve.url(it.baseId, it.schema.id);
+    delete it.wasTop;
+    out += ' var errs_' + ($lvl) + ' = errors;';
+  }
+  var $valid = 'valid' + $lvl,
+    $breakOnError = !it.opts.allErrors,
+    $closingBraces1 = '',
+    $closingBraces2 = '';
+  var $typeSchema = it.schema.type;
+  var arr1 = it.RULES;
+  if (arr1) {
+    var $rulesGroup, i1 = -1,
+      l1 = arr1.length - 1;
+    while (i1 < l1) {
+      $rulesGroup = arr1[i1 += 1];
+      if ($shouldUseGroup($rulesGroup)) {
+        if ($rulesGroup.type) {
+          out += ' if (' + (it.util.checkDataType($rulesGroup.type, $data)) + ') { ';
+        }
+        var arr2 = $rulesGroup.rules;
+        if (arr2) {
+          var $rule, i2 = -1,
+            l2 = arr2.length - 1;
+          while (i2 < l2) {
+            $rule = arr2[i2 += 1];
+            if ($shouldUseRule($rule)) {
+              out += ' ' + ($rule.code(it)) + ' ';
+              if ($breakOnError) {
+                $closingBraces1 += '}';
+              }
+            }
+          }
+        }
+        if ($breakOnError) {
+          out += ' ' + ($closingBraces1) + ' ';
+          $closingBraces1 = '';
+        }
+        if ($rulesGroup.type) {
+          out += ' } ';
+          if ($typeSchema && $typeSchema === $rulesGroup.type) {
+            var $typeChecked = true;
+            out += ' else {  ';
+            if (it.wasTop && $breakOnError) {
+              out += ' validate.errors = [ { keyword: \'' + ('type') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be ';
+              if ($isArray) {
+                out += '' + ($typeSchema.join(","));
+              } else {
+                out += '' + ($typeSchema);
+              }
+              out += '\' ';
+              if (it.opts.verbose) {
+                out += ', schema: ';
+                if ($isArray) {
+                  out += 'validate.schema' + ($schemaPath);
+                } else {
+                  out += '\'' + ($typeSchema) + '\'';
+                }
+                out += ', data: ' + ($data);
+              }
+              out += ' }]; return false; ';
+            } else {
+              out += '  var err =   { keyword: \'' + ('type') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be ';
+              if ($isArray) {
+                out += '' + ($typeSchema.join(","));
+              } else {
+                out += '' + ($typeSchema);
+              }
+              out += '\' ';
+              if (it.opts.verbose) {
+                out += ', schema: ';
+                if ($isArray) {
+                  out += 'validate.schema' + ($schemaPath);
+                } else {
+                  out += '\'' + ($typeSchema) + '\'';
+                }
+                out += ', data: ' + ($data);
+              }
+              out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+            }
+            out += ' } ';
+          }
+        }
+        if ($breakOnError) {
+          out += ' if (errors === ';
+          if ($top) {
+            out += '0';
+          } else {
+            out += 'errs_' + ($lvl);
+          }
+          out += ') { ';
+          $closingBraces2 += '}';
+        }
+      }
+    }
+  }
+  if ($typeSchema && !$typeChecked) {
+    var $schemaPath = it.schemaPath + '.type',
+      $isArray = Array.isArray($typeSchema),
+      $method = $isArray ? 'checkDataTypes' : 'checkDataType';
+    out += ' if (' + (it.util[$method]($typeSchema, $data, true)) + ') {  ';
+    if (it.wasTop && $breakOnError) {
+      out += ' validate.errors = [ { keyword: \'' + ('type') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be ';
+      if ($isArray) {
+        out += '' + ($typeSchema.join(","));
+      } else {
+        out += '' + ($typeSchema);
+      }
+      out += '\' ';
+      if (it.opts.verbose) {
+        out += ', schema: ';
+        if ($isArray) {
+          out += 'validate.schema' + ($schemaPath);
+        } else {
+          out += '\'' + ($typeSchema) + '\'';
+        }
+        out += ', data: ' + ($data);
+      }
+      out += ' }]; return false; ';
+    } else {
+      out += '  var err =   { keyword: \'' + ('type') + '\', dataPath: (dataPath || \'\') + ' + (it.errorPath) + ', message: \'should be ';
+      if ($isArray) {
+        out += '' + ($typeSchema.join(","));
+      } else {
+        out += '' + ($typeSchema);
+      }
+      out += '\' ';
+      if (it.opts.verbose) {
+        out += ', schema: ';
+        if ($isArray) {
+          out += 'validate.schema' + ($schemaPath);
+        } else {
+          out += '\'' + ($typeSchema) + '\'';
+        }
+        out += ', data: ' + ($data);
+      }
+      out += ' }; if (validate.errors === null) validate.errors = [err]; else validate.errors.push(err); errors++; ';
+    }
+    out += ' }';
+  }
+  if ($breakOnError) {
+    out += ' ' + ($closingBraces2) + ' ';
+  }
+  if ($top) {
+    out += ' return errors === 0;';
+    out += ' }';
+  } else {
+    out += ' var ' + ($valid) + ' = errors === errs_' + ($lvl) + ';';
+  }
+  out = it.util.cleanUpCode(out);
+  if ($top && $breakOnError) {
+    out = it.util.cleanUpVarErrors(out);
+  }
+
+  function $shouldUseGroup($rulesGroup) {
+    return $rulesGroup.rules.some(function($rule) {
+      return $shouldUseRule($rule);
+    });
+  }
+
+  function $shouldUseRule($rule) {
+    return it.schema[$rule.keyword] !== undefined || ($rule.keyword == 'properties' && (it.schema.additionalProperties !== undefined || (it.schema.patternProperties && Object.keys(it.schema.patternProperties).length)));
+  }
+  return out;
+}
+
+},{}],33:[function(require,module,exports){
+module.exports={
+    "id": "http://json-schema.org/draft-04/schema#",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "description": "Core schema meta-schema",
+    "definitions": {
+        "schemaArray": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#" }
+        },
+        "positiveInteger": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "positiveIntegerDefault0": {
+            "allOf": [ { "$ref": "#/definitions/positiveInteger" }, { "default": 0 } ]
+        },
+        "simpleTypes": {
+            "enum": [ "array", "boolean", "integer", "null", "number", "object", "string" ]
+        },
+        "stringArray": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "uniqueItems": true
+        }
+    },
+    "type": "object",
+    "properties": {
+        "id": {
+            "type": "string",
+            "format": "uri"
+        },
+        "$schema": {
+            "type": "string",
+            "format": "uri"
+        },
+        "title": {
+            "type": "string"
+        },
+        "description": {
+            "type": "string"
+        },
+        "default": {},
+        "multipleOf": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMinimum": true
+        },
+        "maximum": {
+            "type": "number"
+        },
+        "exclusiveMaximum": {
+            "type": "boolean",
+            "default": false
+        },
+        "minimum": {
+            "type": "number"
+        },
+        "exclusiveMinimum": {
+            "type": "boolean",
+            "default": false
+        },
+        "maxLength": { "$ref": "#/definitions/positiveInteger" },
+        "minLength": { "$ref": "#/definitions/positiveIntegerDefault0" },
+        "pattern": {
+            "type": "string",
+            "format": "regex"
+        },
+        "additionalItems": {
+            "anyOf": [
+                { "type": "boolean" },
+                { "$ref": "#" }
+            ],
+            "default": {}
+        },
+        "items": {
+            "anyOf": [
+                { "$ref": "#" },
+                { "$ref": "#/definitions/schemaArray" }
+            ],
+            "default": {}
+        },
+        "maxItems": { "$ref": "#/definitions/positiveInteger" },
+        "minItems": { "$ref": "#/definitions/positiveIntegerDefault0" },
+        "uniqueItems": {
+            "type": "boolean",
+            "default": false
+        },
+        "maxProperties": { "$ref": "#/definitions/positiveInteger" },
+        "minProperties": { "$ref": "#/definitions/positiveIntegerDefault0" },
+        "required": { "$ref": "#/definitions/stringArray" },
+        "additionalProperties": {
+            "anyOf": [
+                { "type": "boolean" },
+                { "$ref": "#" }
+            ],
+            "default": {}
+        },
+        "definitions": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#" },
+            "default": {}
+        },
+        "properties": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#" },
+            "default": {}
+        },
+        "patternProperties": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#" },
+            "default": {}
+        },
+        "dependencies": {
+            "type": "object",
+            "additionalProperties": {
+                "anyOf": [
+                    { "$ref": "#" },
+                    { "$ref": "#/definitions/stringArray" }
+                ]
+            }
+        },
+        "enum": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "type": {
+            "anyOf": [
+                { "$ref": "#/definitions/simpleTypes" },
+                {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/simpleTypes" },
+                    "minItems": 1,
+                    "uniqueItems": true
+                }
+            ]
+        },
+        "allOf": { "$ref": "#/definitions/schemaArray" },
+        "anyOf": { "$ref": "#/definitions/schemaArray" },
+        "oneOf": { "$ref": "#/definitions/schemaArray" },
+        "not": { "$ref": "#" }
+    },
+    "dependencies": {
+        "exclusiveMaximum": [ "maximum" ],
+        "exclusiveMinimum": [ "minimum" ]
+    },
+    "default": {}
+}
+
+},{}],34:[function(require,module,exports){
+var toString = {}.toString;
+
+module.exports = Array.isArray || function (arr) {
+  return toString.call(arr) == '[object Array]';
+};
+
+},{}],35:[function(require,module,exports){
+'use strict';
+
+/** @type {typeof JSON.stringify} */
+var jsonStringify = (typeof JSON !== 'undefined' ? JSON : require('jsonify')).stringify;
+
+var isArray = require('isarray');
+var objectKeys = require('object-keys');
+var callBind = require('call-bind');
+var callBound = require('call-bound');
+
+var $join = callBound('Array.prototype.join');
+var $indexOf = callBound('Array.prototype.indexOf');
+var $splice = callBound('Array.prototype.splice');
+var $sort = callBound('Array.prototype.sort');
+
+/** @type {(n: number, char: string) => string} */
+var strRepeat = function repeat(n, char) {
+	var str = '';
+	for (var i = 0; i < n; i += 1) {
+		str += char;
+	}
+	return str;
+};
+
+/** @type {(parent: import('.').Node, key: import('.').Key, value: unknown) => unknown} */
+var defaultReplacer = function (_parent, _key, value) { return value; };
+
+/** @type {import('.')} */
+module.exports = function stableStringify(obj) {
+	/** @type {Parameters<import('.')>[1]} */
+	var opts = arguments.length > 1 ? arguments[1] : void undefined;
+	var space = (opts && opts.space) || '';
+	if (typeof space === 'number') { space = strRepeat(space, ' '); }
+	var cycles = !!opts && typeof opts.cycles === 'boolean' && opts.cycles;
+	/** @type {undefined | typeof defaultReplacer} */
+	var replacer = opts && opts.replacer ? callBind(opts.replacer) : defaultReplacer;
+	if (opts && typeof opts.collapseEmpty !== 'undefined' && typeof opts.collapseEmpty !== 'boolean') {
+		throw new TypeError('`collapseEmpty` must be a boolean, if provided');
+	}
+	var collapseEmpty = !!opts && opts.collapseEmpty;
+
+	var cmpOpt = typeof opts === 'function' ? opts : opts && opts.cmp;
+	/** @type {undefined | (<T extends import('.').NonArrayNode>(node: T) => (a: Exclude<keyof T, symbol | number>, b: Exclude<keyof T, symbol | number>) => number)} */
+	var cmp = cmpOpt && function (node) {
+		// eslint-disable-next-line no-extra-parens
+		var get = /** @type {NonNullable<typeof cmpOpt>} */ (cmpOpt).length > 2
+			&& /** @type {import('.').Getter['get']} */ function get(k) { return node[k]; };
+		return function (a, b) {
+			// eslint-disable-next-line no-extra-parens
+			return /** @type {NonNullable<typeof cmpOpt>} */ (cmpOpt)(
+				{ key: a, value: node[a] },
+				{ key: b, value: node[b] },
+				// @ts-expect-error TS doesn't understand the optimization used here
+				get ? /** @type {import('.').Getter} */ { __proto__: null, get: get } : void undefined
+			);
+		};
+	};
+
+	/** @type {import('.').Node[]} */
+	var seen = [];
+	return (/** @type {(parent: import('.').Node, key: string | number, node: unknown, level: number) => string | undefined} */
+		function stringify(parent, key, node, level) {
+			var indent = space ? '\n' + strRepeat(level, space) : '';
+			var colonSeparator = space ? ': ' : ':';
+
+			// eslint-disable-next-line no-extra-parens
+			if (node && /** @type {{ toJSON?: unknown }} */ (node).toJSON && typeof /** @type {{ toJSON?: unknown }} */ (node).toJSON === 'function') {
+				// eslint-disable-next-line no-extra-parens
+				node = /** @type {{ toJSON: Function }} */ (node).toJSON();
+			}
+
+			node = replacer(parent, key, node);
+			if (node === undefined) {
+				return;
+			}
+			if (typeof node !== 'object' || node === null) {
+				return jsonStringify(node);
+			}
+
+			/** @type {(out: string[], brackets: '[]' | '{}') => string} */
+			var groupOutput = function (out, brackets) {
+				return collapseEmpty && out.length === 0
+					? brackets
+					: (brackets === '[]' ? '[' : '{') + $join(out, ',') + indent + (brackets === '[]' ? ']' : '}');
+			};
+
+			if (isArray(node)) {
+				var out = [];
+				for (var i = 0; i < node.length; i++) {
+					var item = stringify(node, i, node[i], level + 1) || jsonStringify(null);
+					out[out.length] = indent + space + item;
+				}
+				return groupOutput(out, '[]');
+			}
+
+			if ($indexOf(seen, node) !== -1) {
+				if (cycles) { return jsonStringify('__cycle__'); }
+				throw new TypeError('Converting circular structure to JSON');
+			} else {
+				seen[seen.length] = /** @type {import('.').NonArrayNode} */ (node);
+			}
+
+			/** @type {import('.').Key[]} */
+			// eslint-disable-next-line no-extra-parens
+			var keys = $sort(objectKeys(node), cmp && cmp(/** @type {import('.').NonArrayNode} */ (node)));
+			var out = [];
+			for (var i = 0; i < keys.length; i++) {
+				var key = keys[i];
+				// eslint-disable-next-line no-extra-parens
+				var value = stringify(/** @type {import('.').Node} */ (node), key, /** @type {import('.').NonArrayNode} */ (node)[key], level + 1);
+
+				if (!value) { continue; }
+
+				var keyValue = jsonStringify(key)
+					+ colonSeparator
+					+ value;
+
+				out[out.length] = indent + space + keyValue;
+			}
+			$splice(seen, $indexOf(seen, node), 1);
+			return groupOutput(out, '{}');
+		}({ '': obj }, '', obj, 0)
+	);
+};
+
+},{"call-bind":47,"call-bound":48,"isarray":34,"jsonify":73,"object-keys":85}],36:[function(require,module,exports){
 // Backbone.BabySitter
 // -------------------
 // v0.1.11
@@ -190,7 +2866,7 @@
 
 }));
 
-},{"backbone":4,"underscore":7}],2:[function(require,module,exports){
+},{"backbone":39,"underscore":92}],37:[function(require,module,exports){
 // MarionetteJS (Backbone.Marionette)
 // ----------------------------------
 // v2.4.7
@@ -3704,7 +6380,7 @@
   return Marionette;
 }));
 
-},{"backbone":4,"backbone.babysitter":1,"backbone.wreqr":3,"underscore":7}],3:[function(require,module,exports){
+},{"backbone":39,"backbone.babysitter":36,"backbone.wreqr":38,"underscore":92}],38:[function(require,module,exports){
 // Backbone.Wreqr (Backbone.Marionette)
 // ----------------------------------
 // v1.4.0
@@ -4141,7 +6817,7 @@
 
 }));
 
-},{"backbone":4,"underscore":7}],4:[function(require,module,exports){
+},{"backbone":39,"underscore":92}],39:[function(require,module,exports){
 //     Backbone.js 1.1.2
 
 //     (c) 2010-2014 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -5751,7 +8427,1440 @@
 
 }));
 
-},{"underscore":7}],5:[function(require,module,exports){
+},{"underscore":92}],40:[function(require,module,exports){
+(function (global){
+/*! https://mths.be/punycode v1.4.1 by @mathias */
+;(function(root) {
+
+	/** Detect free variables */
+	var freeExports = typeof exports == 'object' && exports &&
+		!exports.nodeType && exports;
+	var freeModule = typeof module == 'object' && module &&
+		!module.nodeType && module;
+	var freeGlobal = typeof global == 'object' && global;
+	if (
+		freeGlobal.global === freeGlobal ||
+		freeGlobal.window === freeGlobal ||
+		freeGlobal.self === freeGlobal
+	) {
+		root = freeGlobal;
+	}
+
+	/**
+	 * The `punycode` object.
+	 * @name punycode
+	 * @type Object
+	 */
+	var punycode,
+
+	/** Highest positive signed 32-bit float value */
+	maxInt = 2147483647, // aka. 0x7FFFFFFF or 2^31-1
+
+	/** Bootstring parameters */
+	base = 36,
+	tMin = 1,
+	tMax = 26,
+	skew = 38,
+	damp = 700,
+	initialBias = 72,
+	initialN = 128, // 0x80
+	delimiter = '-', // '\x2D'
+
+	/** Regular expressions */
+	regexPunycode = /^xn--/,
+	regexNonASCII = /[^\x20-\x7E]/, // unprintable ASCII chars + non-ASCII chars
+	regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g, // RFC 3490 separators
+
+	/** Error messages */
+	errors = {
+		'overflow': 'Overflow: input needs wider integers to process',
+		'not-basic': 'Illegal input >= 0x80 (not a basic code point)',
+		'invalid-input': 'Invalid input'
+	},
+
+	/** Convenience shortcuts */
+	baseMinusTMin = base - tMin,
+	floor = Math.floor,
+	stringFromCharCode = String.fromCharCode,
+
+	/** Temporary variable */
+	key;
+
+	/*--------------------------------------------------------------------------*/
+
+	/**
+	 * A generic error utility function.
+	 * @private
+	 * @param {String} type The error type.
+	 * @returns {Error} Throws a `RangeError` with the applicable error message.
+	 */
+	function error(type) {
+		throw new RangeError(errors[type]);
+	}
+
+	/**
+	 * A generic `Array#map` utility function.
+	 * @private
+	 * @param {Array} array The array to iterate over.
+	 * @param {Function} callback The function that gets called for every array
+	 * item.
+	 * @returns {Array} A new array of values returned by the callback function.
+	 */
+	function map(array, fn) {
+		var length = array.length;
+		var result = [];
+		while (length--) {
+			result[length] = fn(array[length]);
+		}
+		return result;
+	}
+
+	/**
+	 * A simple `Array#map`-like wrapper to work with domain name strings or email
+	 * addresses.
+	 * @private
+	 * @param {String} domain The domain name or email address.
+	 * @param {Function} callback The function that gets called for every
+	 * character.
+	 * @returns {Array} A new string of characters returned by the callback
+	 * function.
+	 */
+	function mapDomain(string, fn) {
+		var parts = string.split('@');
+		var result = '';
+		if (parts.length > 1) {
+			// In email addresses, only the domain name should be punycoded. Leave
+			// the local part (i.e. everything up to `@`) intact.
+			result = parts[0] + '@';
+			string = parts[1];
+		}
+		// Avoid `split(regex)` for IE8 compatibility. See #17.
+		string = string.replace(regexSeparators, '\x2E');
+		var labels = string.split('.');
+		var encoded = map(labels, fn).join('.');
+		return result + encoded;
+	}
+
+	/**
+	 * Creates an array containing the numeric code points of each Unicode
+	 * character in the string. While JavaScript uses UCS-2 internally,
+	 * this function will convert a pair of surrogate halves (each of which
+	 * UCS-2 exposes as separate characters) into a single code point,
+	 * matching UTF-16.
+	 * @see `punycode.ucs2.encode`
+	 * @see <https://mathiasbynens.be/notes/javascript-encoding>
+	 * @memberOf punycode.ucs2
+	 * @name decode
+	 * @param {String} string The Unicode input string (UCS-2).
+	 * @returns {Array} The new array of code points.
+	 */
+	function ucs2decode(string) {
+		var output = [],
+		    counter = 0,
+		    length = string.length,
+		    value,
+		    extra;
+		while (counter < length) {
+			value = string.charCodeAt(counter++);
+			if (value >= 0xD800 && value <= 0xDBFF && counter < length) {
+				// high surrogate, and there is a next character
+				extra = string.charCodeAt(counter++);
+				if ((extra & 0xFC00) == 0xDC00) { // low surrogate
+					output.push(((value & 0x3FF) << 10) + (extra & 0x3FF) + 0x10000);
+				} else {
+					// unmatched surrogate; only append this code unit, in case the next
+					// code unit is the high surrogate of a surrogate pair
+					output.push(value);
+					counter--;
+				}
+			} else {
+				output.push(value);
+			}
+		}
+		return output;
+	}
+
+	/**
+	 * Creates a string based on an array of numeric code points.
+	 * @see `punycode.ucs2.decode`
+	 * @memberOf punycode.ucs2
+	 * @name encode
+	 * @param {Array} codePoints The array of numeric code points.
+	 * @returns {String} The new Unicode string (UCS-2).
+	 */
+	function ucs2encode(array) {
+		return map(array, function(value) {
+			var output = '';
+			if (value > 0xFFFF) {
+				value -= 0x10000;
+				output += stringFromCharCode(value >>> 10 & 0x3FF | 0xD800);
+				value = 0xDC00 | value & 0x3FF;
+			}
+			output += stringFromCharCode(value);
+			return output;
+		}).join('');
+	}
+
+	/**
+	 * Converts a basic code point into a digit/integer.
+	 * @see `digitToBasic()`
+	 * @private
+	 * @param {Number} codePoint The basic numeric code point value.
+	 * @returns {Number} The numeric value of a basic code point (for use in
+	 * representing integers) in the range `0` to `base - 1`, or `base` if
+	 * the code point does not represent a value.
+	 */
+	function basicToDigit(codePoint) {
+		if (codePoint - 48 < 10) {
+			return codePoint - 22;
+		}
+		if (codePoint - 65 < 26) {
+			return codePoint - 65;
+		}
+		if (codePoint - 97 < 26) {
+			return codePoint - 97;
+		}
+		return base;
+	}
+
+	/**
+	 * Converts a digit/integer into a basic code point.
+	 * @see `basicToDigit()`
+	 * @private
+	 * @param {Number} digit The numeric value of a basic code point.
+	 * @returns {Number} The basic code point whose value (when used for
+	 * representing integers) is `digit`, which needs to be in the range
+	 * `0` to `base - 1`. If `flag` is non-zero, the uppercase form is
+	 * used; else, the lowercase form is used. The behavior is undefined
+	 * if `flag` is non-zero and `digit` has no uppercase form.
+	 */
+	function digitToBasic(digit, flag) {
+		//  0..25 map to ASCII a..z or A..Z
+		// 26..35 map to ASCII 0..9
+		return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
+	}
+
+	/**
+	 * Bias adaptation function as per section 3.4 of RFC 3492.
+	 * https://tools.ietf.org/html/rfc3492#section-3.4
+	 * @private
+	 */
+	function adapt(delta, numPoints, firstTime) {
+		var k = 0;
+		delta = firstTime ? floor(delta / damp) : delta >> 1;
+		delta += floor(delta / numPoints);
+		for (/* no initialization */; delta > baseMinusTMin * tMax >> 1; k += base) {
+			delta = floor(delta / baseMinusTMin);
+		}
+		return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
+	}
+
+	/**
+	 * Converts a Punycode string of ASCII-only symbols to a string of Unicode
+	 * symbols.
+	 * @memberOf punycode
+	 * @param {String} input The Punycode string of ASCII-only symbols.
+	 * @returns {String} The resulting string of Unicode symbols.
+	 */
+	function decode(input) {
+		// Don't use UCS-2
+		var output = [],
+		    inputLength = input.length,
+		    out,
+		    i = 0,
+		    n = initialN,
+		    bias = initialBias,
+		    basic,
+		    j,
+		    index,
+		    oldi,
+		    w,
+		    k,
+		    digit,
+		    t,
+		    /** Cached calculation results */
+		    baseMinusT;
+
+		// Handle the basic code points: let `basic` be the number of input code
+		// points before the last delimiter, or `0` if there is none, then copy
+		// the first basic code points to the output.
+
+		basic = input.lastIndexOf(delimiter);
+		if (basic < 0) {
+			basic = 0;
+		}
+
+		for (j = 0; j < basic; ++j) {
+			// if it's not a basic code point
+			if (input.charCodeAt(j) >= 0x80) {
+				error('not-basic');
+			}
+			output.push(input.charCodeAt(j));
+		}
+
+		// Main decoding loop: start just after the last delimiter if any basic code
+		// points were copied; start at the beginning otherwise.
+
+		for (index = basic > 0 ? basic + 1 : 0; index < inputLength; /* no final expression */) {
+
+			// `index` is the index of the next character to be consumed.
+			// Decode a generalized variable-length integer into `delta`,
+			// which gets added to `i`. The overflow checking is easier
+			// if we increase `i` as we go, then subtract off its starting
+			// value at the end to obtain `delta`.
+			for (oldi = i, w = 1, k = base; /* no condition */; k += base) {
+
+				if (index >= inputLength) {
+					error('invalid-input');
+				}
+
+				digit = basicToDigit(input.charCodeAt(index++));
+
+				if (digit >= base || digit > floor((maxInt - i) / w)) {
+					error('overflow');
+				}
+
+				i += digit * w;
+				t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
+
+				if (digit < t) {
+					break;
+				}
+
+				baseMinusT = base - t;
+				if (w > floor(maxInt / baseMinusT)) {
+					error('overflow');
+				}
+
+				w *= baseMinusT;
+
+			}
+
+			out = output.length + 1;
+			bias = adapt(i - oldi, out, oldi == 0);
+
+			// `i` was supposed to wrap around from `out` to `0`,
+			// incrementing `n` each time, so we'll fix that now:
+			if (floor(i / out) > maxInt - n) {
+				error('overflow');
+			}
+
+			n += floor(i / out);
+			i %= out;
+
+			// Insert `n` at position `i` of the output
+			output.splice(i++, 0, n);
+
+		}
+
+		return ucs2encode(output);
+	}
+
+	/**
+	 * Converts a string of Unicode symbols (e.g. a domain name label) to a
+	 * Punycode string of ASCII-only symbols.
+	 * @memberOf punycode
+	 * @param {String} input The string of Unicode symbols.
+	 * @returns {String} The resulting Punycode string of ASCII-only symbols.
+	 */
+	function encode(input) {
+		var n,
+		    delta,
+		    handledCPCount,
+		    basicLength,
+		    bias,
+		    j,
+		    m,
+		    q,
+		    k,
+		    t,
+		    currentValue,
+		    output = [],
+		    /** `inputLength` will hold the number of code points in `input`. */
+		    inputLength,
+		    /** Cached calculation results */
+		    handledCPCountPlusOne,
+		    baseMinusT,
+		    qMinusT;
+
+		// Convert the input in UCS-2 to Unicode
+		input = ucs2decode(input);
+
+		// Cache the length
+		inputLength = input.length;
+
+		// Initialize the state
+		n = initialN;
+		delta = 0;
+		bias = initialBias;
+
+		// Handle the basic code points
+		for (j = 0; j < inputLength; ++j) {
+			currentValue = input[j];
+			if (currentValue < 0x80) {
+				output.push(stringFromCharCode(currentValue));
+			}
+		}
+
+		handledCPCount = basicLength = output.length;
+
+		// `handledCPCount` is the number of code points that have been handled;
+		// `basicLength` is the number of basic code points.
+
+		// Finish the basic string - if it is not empty - with a delimiter
+		if (basicLength) {
+			output.push(delimiter);
+		}
+
+		// Main encoding loop:
+		while (handledCPCount < inputLength) {
+
+			// All non-basic code points < n have been handled already. Find the next
+			// larger one:
+			for (m = maxInt, j = 0; j < inputLength; ++j) {
+				currentValue = input[j];
+				if (currentValue >= n && currentValue < m) {
+					m = currentValue;
+				}
+			}
+
+			// Increase `delta` enough to advance the decoder's <n,i> state to <m,0>,
+			// but guard against overflow
+			handledCPCountPlusOne = handledCPCount + 1;
+			if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
+				error('overflow');
+			}
+
+			delta += (m - n) * handledCPCountPlusOne;
+			n = m;
+
+			for (j = 0; j < inputLength; ++j) {
+				currentValue = input[j];
+
+				if (currentValue < n && ++delta > maxInt) {
+					error('overflow');
+				}
+
+				if (currentValue == n) {
+					// Represent delta as a generalized variable-length integer
+					for (q = delta, k = base; /* no condition */; k += base) {
+						t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
+						if (q < t) {
+							break;
+						}
+						qMinusT = q - t;
+						baseMinusT = base - t;
+						output.push(
+							stringFromCharCode(digitToBasic(t + qMinusT % baseMinusT, 0))
+						);
+						q = floor(qMinusT / baseMinusT);
+					}
+
+					output.push(stringFromCharCode(digitToBasic(q, 0)));
+					bias = adapt(delta, handledCPCountPlusOne, handledCPCount == basicLength);
+					delta = 0;
+					++handledCPCount;
+				}
+			}
+
+			++delta;
+			++n;
+
+		}
+		return output.join('');
+	}
+
+	/**
+	 * Converts a Punycode string representing a domain name or an email address
+	 * to Unicode. Only the Punycoded parts of the input will be converted, i.e.
+	 * it doesn't matter if you call it on a string that has already been
+	 * converted to Unicode.
+	 * @memberOf punycode
+	 * @param {String} input The Punycoded domain name or email address to
+	 * convert to Unicode.
+	 * @returns {String} The Unicode representation of the given Punycode
+	 * string.
+	 */
+	function toUnicode(input) {
+		return mapDomain(input, function(string) {
+			return regexPunycode.test(string)
+				? decode(string.slice(4).toLowerCase())
+				: string;
+		});
+	}
+
+	/**
+	 * Converts a Unicode string representing a domain name or an email address to
+	 * Punycode. Only the non-ASCII parts of the domain name will be converted,
+	 * i.e. it doesn't matter if you call it with a domain that's already in
+	 * ASCII.
+	 * @memberOf punycode
+	 * @param {String} input The domain name or email address to convert, as a
+	 * Unicode string.
+	 * @returns {String} The Punycode representation of the given domain name or
+	 * email address.
+	 */
+	function toASCII(input) {
+		return mapDomain(input, function(string) {
+			return regexNonASCII.test(string)
+				? 'xn--' + encode(string)
+				: string;
+		});
+	}
+
+	/*--------------------------------------------------------------------------*/
+
+	/** Define the public API */
+	punycode = {
+		/**
+		 * A string representing the current Punycode.js version number.
+		 * @memberOf punycode
+		 * @type String
+		 */
+		'version': '1.4.1',
+		/**
+		 * An object of methods to convert from JavaScript's internal character
+		 * representation (UCS-2) to Unicode code points, and back.
+		 * @see <https://mathiasbynens.be/notes/javascript-encoding>
+		 * @memberOf punycode
+		 * @type Object
+		 */
+		'ucs2': {
+			'decode': ucs2decode,
+			'encode': ucs2encode
+		},
+		'decode': decode,
+		'encode': encode,
+		'toASCII': toASCII,
+		'toUnicode': toUnicode
+	};
+
+	/** Expose `punycode` */
+	// Some AMD build optimizers, like r.js, check for specific condition patterns
+	// like the following:
+	if (
+		typeof define == 'function' &&
+		typeof define.amd == 'object' &&
+		define.amd
+	) {
+		define('punycode', function() {
+			return punycode;
+		});
+	} else if (freeExports && freeModule) {
+		if (module.exports == freeExports) {
+			// in Node.js, io.js, or RingoJS v0.8.0+
+			freeModule.exports = punycode;
+		} else {
+			// in Narwhal or RingoJS v0.7.0-
+			for (key in punycode) {
+				punycode.hasOwnProperty(key) && (freeExports[key] = punycode[key]);
+			}
+		}
+	} else {
+		// in Rhino or a web browser
+		root.punycode = punycode;
+	}
+
+}(this));
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],41:[function(require,module,exports){
+'use strict';
+
+var bind = require('function-bind');
+
+var $apply = require('./functionApply');
+var $call = require('./functionCall');
+var $reflectApply = require('./reflectApply');
+
+/** @type {import('./actualApply')} */
+module.exports = $reflectApply || bind.call($call, $apply);
+
+},{"./functionApply":43,"./functionCall":44,"./reflectApply":46,"function-bind":61}],42:[function(require,module,exports){
+'use strict';
+
+var bind = require('function-bind');
+var $apply = require('./functionApply');
+var actualApply = require('./actualApply');
+
+/** @type {import('./applyBind')} */
+module.exports = function applyBind() {
+	return actualApply(bind, $apply, arguments);
+};
+
+},{"./actualApply":41,"./functionApply":43,"function-bind":61}],43:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./functionApply')} */
+module.exports = Function.prototype.apply;
+
+},{}],44:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./functionCall')} */
+module.exports = Function.prototype.call;
+
+},{}],45:[function(require,module,exports){
+'use strict';
+
+var bind = require('function-bind');
+var $TypeError = require('es-errors/type');
+
+var $call = require('./functionCall');
+var $actualApply = require('./actualApply');
+
+/** @type {(args: [Function, thisArg?: unknown, ...args: unknown[]]) => Function} TODO FIXME, find a way to use import('.') */
+module.exports = function callBindBasic(args) {
+	if (args.length < 1 || typeof args[0] !== 'function') {
+		throw new $TypeError('a function is required');
+	}
+	return $actualApply(bind, $call, args);
+};
+
+},{"./actualApply":41,"./functionCall":44,"es-errors/type":57,"function-bind":61}],46:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./reflectApply')} */
+module.exports = typeof Reflect !== 'undefined' && Reflect && Reflect.apply;
+
+},{}],47:[function(require,module,exports){
+'use strict';
+
+var setFunctionLength = require('set-function-length');
+
+var $defineProperty = require('es-define-property');
+
+var callBindBasic = require('call-bind-apply-helpers');
+var applyBind = require('call-bind-apply-helpers/applyBind');
+
+module.exports = function callBind(originalFunction) {
+	var func = callBindBasic(arguments);
+	var adjustedLength = 1 + originalFunction.length - (arguments.length - 1);
+	return setFunctionLength(
+		func,
+		adjustedLength > 0 ? adjustedLength : 0,
+		true
+	);
+};
+
+if ($defineProperty) {
+	$defineProperty(module.exports, 'apply', { value: applyBind });
+} else {
+	module.exports.apply = applyBind;
+}
+
+},{"call-bind-apply-helpers":45,"call-bind-apply-helpers/applyBind":42,"es-define-property":51,"set-function-length":91}],48:[function(require,module,exports){
+'use strict';
+
+var GetIntrinsic = require('get-intrinsic');
+
+var callBindBasic = require('call-bind-apply-helpers');
+
+/** @type {(thisArg: string, searchString: string, position?: number) => number} */
+var $indexOf = callBindBasic([GetIntrinsic('%String.prototype.indexOf%')]);
+
+/** @type {import('.')} */
+module.exports = function callBoundIntrinsic(name, allowMissing) {
+	/* eslint no-extra-parens: 0 */
+
+	var intrinsic = /** @type {(this: unknown, ...args: unknown[]) => unknown} */ (GetIntrinsic(name, !!allowMissing));
+	if (typeof intrinsic === 'function' && $indexOf(name, '.prototype.') > -1) {
+		return callBindBasic(/** @type {const} */ ([intrinsic]));
+	}
+	return intrinsic;
+};
+
+},{"call-bind-apply-helpers":45,"get-intrinsic":62}],49:[function(require,module,exports){
+'use strict';
+
+var $defineProperty = require('es-define-property');
+
+var $SyntaxError = require('es-errors/syntax');
+var $TypeError = require('es-errors/type');
+
+var gopd = require('gopd');
+
+/** @type {import('.')} */
+module.exports = function defineDataProperty(
+	obj,
+	property,
+	value
+) {
+	if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) {
+		throw new $TypeError('`obj` must be an object or a function`');
+	}
+	if (typeof property !== 'string' && typeof property !== 'symbol') {
+		throw new $TypeError('`property` must be a string or a symbol`');
+	}
+	if (arguments.length > 3 && typeof arguments[3] !== 'boolean' && arguments[3] !== null) {
+		throw new $TypeError('`nonEnumerable`, if provided, must be a boolean or null');
+	}
+	if (arguments.length > 4 && typeof arguments[4] !== 'boolean' && arguments[4] !== null) {
+		throw new $TypeError('`nonWritable`, if provided, must be a boolean or null');
+	}
+	if (arguments.length > 5 && typeof arguments[5] !== 'boolean' && arguments[5] !== null) {
+		throw new $TypeError('`nonConfigurable`, if provided, must be a boolean or null');
+	}
+	if (arguments.length > 6 && typeof arguments[6] !== 'boolean') {
+		throw new $TypeError('`loose`, if provided, must be a boolean');
+	}
+
+	var nonEnumerable = arguments.length > 3 ? arguments[3] : null;
+	var nonWritable = arguments.length > 4 ? arguments[4] : null;
+	var nonConfigurable = arguments.length > 5 ? arguments[5] : null;
+	var loose = arguments.length > 6 ? arguments[6] : false;
+
+	/* @type {false | TypedPropertyDescriptor<unknown>} */
+	var desc = !!gopd && gopd(obj, property);
+
+	if ($defineProperty) {
+		$defineProperty(obj, property, {
+			configurable: nonConfigurable === null && desc ? desc.configurable : !nonConfigurable,
+			enumerable: nonEnumerable === null && desc ? desc.enumerable : !nonEnumerable,
+			value: value,
+			writable: nonWritable === null && desc ? desc.writable : !nonWritable
+		});
+	} else if (loose || (!nonEnumerable && !nonWritable && !nonConfigurable)) {
+		// must fall back to [[Set]], and was not explicitly asked to make non-enumerable, non-writable, or non-configurable
+		obj[property] = value; // eslint-disable-line no-param-reassign
+	} else {
+		throw new $SyntaxError('This environment does not support defining a property as non-configurable, non-writable, or non-enumerable.');
+	}
+};
+
+},{"es-define-property":51,"es-errors/syntax":56,"es-errors/type":57,"gopd":67}],50:[function(require,module,exports){
+'use strict';
+
+var callBind = require('call-bind-apply-helpers');
+var gOPD = require('gopd');
+
+var hasProtoAccessor;
+try {
+	// eslint-disable-next-line no-extra-parens, no-proto
+	hasProtoAccessor = /** @type {{ __proto__?: typeof Array.prototype }} */ ([]).__proto__ === Array.prototype;
+} catch (e) {
+	if (!e || typeof e !== 'object' || !('code' in e) || e.code !== 'ERR_PROTO_ACCESS') {
+		throw e;
+	}
+}
+
+// eslint-disable-next-line no-extra-parens
+var desc = !!hasProtoAccessor && gOPD && gOPD(Object.prototype, /** @type {keyof typeof Object.prototype} */ ('__proto__'));
+
+var $Object = Object;
+var $getPrototypeOf = $Object.getPrototypeOf;
+
+/** @type {import('./get')} */
+module.exports = desc && typeof desc.get === 'function'
+	? callBind([desc.get])
+	: typeof $getPrototypeOf === 'function'
+		? /** @type {import('./get')} */ function getDunder(value) {
+			// eslint-disable-next-line eqeqeq
+			return $getPrototypeOf(value == null ? value : $Object(value));
+		}
+		: false;
+
+},{"call-bind-apply-helpers":45,"gopd":67}],51:[function(require,module,exports){
+'use strict';
+
+/** @type {import('.')} */
+var $defineProperty = Object.defineProperty || false;
+if ($defineProperty) {
+	try {
+		$defineProperty({}, 'a', { value: 1 });
+	} catch (e) {
+		// IE 8 has a broken defineProperty
+		$defineProperty = false;
+	}
+}
+
+module.exports = $defineProperty;
+
+},{}],52:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./eval')} */
+module.exports = EvalError;
+
+},{}],53:[function(require,module,exports){
+'use strict';
+
+/** @type {import('.')} */
+module.exports = Error;
+
+},{}],54:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./range')} */
+module.exports = RangeError;
+
+},{}],55:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./ref')} */
+module.exports = ReferenceError;
+
+},{}],56:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./syntax')} */
+module.exports = SyntaxError;
+
+},{}],57:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./type')} */
+module.exports = TypeError;
+
+},{}],58:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./uri')} */
+module.exports = URIError;
+
+},{}],59:[function(require,module,exports){
+'use strict';
+
+/** @type {import('.')} */
+module.exports = Object;
+
+},{}],60:[function(require,module,exports){
+'use strict';
+
+/* eslint no-invalid-this: 1 */
+
+var ERROR_MESSAGE = 'Function.prototype.bind called on incompatible ';
+var toStr = Object.prototype.toString;
+var max = Math.max;
+var funcType = '[object Function]';
+
+var concatty = function concatty(a, b) {
+    var arr = [];
+
+    for (var i = 0; i < a.length; i += 1) {
+        arr[i] = a[i];
+    }
+    for (var j = 0; j < b.length; j += 1) {
+        arr[j + a.length] = b[j];
+    }
+
+    return arr;
+};
+
+var slicy = function slicy(arrLike, offset) {
+    var arr = [];
+    for (var i = offset || 0, j = 0; i < arrLike.length; i += 1, j += 1) {
+        arr[j] = arrLike[i];
+    }
+    return arr;
+};
+
+var joiny = function (arr, joiner) {
+    var str = '';
+    for (var i = 0; i < arr.length; i += 1) {
+        str += arr[i];
+        if (i + 1 < arr.length) {
+            str += joiner;
+        }
+    }
+    return str;
+};
+
+module.exports = function bind(that) {
+    var target = this;
+    if (typeof target !== 'function' || toStr.apply(target) !== funcType) {
+        throw new TypeError(ERROR_MESSAGE + target);
+    }
+    var args = slicy(arguments, 1);
+
+    var bound;
+    var binder = function () {
+        if (this instanceof bound) {
+            var result = target.apply(
+                this,
+                concatty(args, arguments)
+            );
+            if (Object(result) === result) {
+                return result;
+            }
+            return this;
+        }
+        return target.apply(
+            that,
+            concatty(args, arguments)
+        );
+
+    };
+
+    var boundLength = max(0, target.length - args.length);
+    var boundArgs = [];
+    for (var i = 0; i < boundLength; i++) {
+        boundArgs[i] = '$' + i;
+    }
+
+    bound = Function('binder', 'return function (' + joiny(boundArgs, ',') + '){ return binder.apply(this,arguments); }')(binder);
+
+    if (target.prototype) {
+        var Empty = function Empty() {};
+        Empty.prototype = target.prototype;
+        bound.prototype = new Empty();
+        Empty.prototype = null;
+    }
+
+    return bound;
+};
+
+},{}],61:[function(require,module,exports){
+'use strict';
+
+var implementation = require('./implementation');
+
+module.exports = Function.prototype.bind || implementation;
+
+},{"./implementation":60}],62:[function(require,module,exports){
+'use strict';
+
+var undefined;
+
+var $Object = require('es-object-atoms');
+
+var $Error = require('es-errors');
+var $EvalError = require('es-errors/eval');
+var $RangeError = require('es-errors/range');
+var $ReferenceError = require('es-errors/ref');
+var $SyntaxError = require('es-errors/syntax');
+var $TypeError = require('es-errors/type');
+var $URIError = require('es-errors/uri');
+
+var abs = require('math-intrinsics/abs');
+var floor = require('math-intrinsics/floor');
+var max = require('math-intrinsics/max');
+var min = require('math-intrinsics/min');
+var pow = require('math-intrinsics/pow');
+var round = require('math-intrinsics/round');
+var sign = require('math-intrinsics/sign');
+
+var $Function = Function;
+
+// eslint-disable-next-line consistent-return
+var getEvalledConstructor = function (expressionSyntax) {
+	try {
+		return $Function('"use strict"; return (' + expressionSyntax + ').constructor;')();
+	} catch (e) {}
+};
+
+var $gOPD = require('gopd');
+var $defineProperty = require('es-define-property');
+
+var throwTypeError = function () {
+	throw new $TypeError();
+};
+var ThrowTypeError = $gOPD
+	? (function () {
+		try {
+			// eslint-disable-next-line no-unused-expressions, no-caller, no-restricted-properties
+			arguments.callee; // IE 8 does not throw here
+			return throwTypeError;
+		} catch (calleeThrows) {
+			try {
+				// IE 8 throws on Object.getOwnPropertyDescriptor(arguments, '')
+				return $gOPD(arguments, 'callee').get;
+			} catch (gOPDthrows) {
+				return throwTypeError;
+			}
+		}
+	}())
+	: throwTypeError;
+
+var hasSymbols = require('has-symbols')();
+
+var getProto = require('get-proto');
+var $ObjectGPO = require('get-proto/Object.getPrototypeOf');
+var $ReflectGPO = require('get-proto/Reflect.getPrototypeOf');
+
+var $apply = require('call-bind-apply-helpers/functionApply');
+var $call = require('call-bind-apply-helpers/functionCall');
+
+var needsEval = {};
+
+var TypedArray = typeof Uint8Array === 'undefined' || !getProto ? undefined : getProto(Uint8Array);
+
+var INTRINSICS = {
+	__proto__: null,
+	'%AggregateError%': typeof AggregateError === 'undefined' ? undefined : AggregateError,
+	'%Array%': Array,
+	'%ArrayBuffer%': typeof ArrayBuffer === 'undefined' ? undefined : ArrayBuffer,
+	'%ArrayIteratorPrototype%': hasSymbols && getProto ? getProto([][Symbol.iterator]()) : undefined,
+	'%AsyncFromSyncIteratorPrototype%': undefined,
+	'%AsyncFunction%': needsEval,
+	'%AsyncGenerator%': needsEval,
+	'%AsyncGeneratorFunction%': needsEval,
+	'%AsyncIteratorPrototype%': needsEval,
+	'%Atomics%': typeof Atomics === 'undefined' ? undefined : Atomics,
+	'%BigInt%': typeof BigInt === 'undefined' ? undefined : BigInt,
+	'%BigInt64Array%': typeof BigInt64Array === 'undefined' ? undefined : BigInt64Array,
+	'%BigUint64Array%': typeof BigUint64Array === 'undefined' ? undefined : BigUint64Array,
+	'%Boolean%': Boolean,
+	'%DataView%': typeof DataView === 'undefined' ? undefined : DataView,
+	'%Date%': Date,
+	'%decodeURI%': decodeURI,
+	'%decodeURIComponent%': decodeURIComponent,
+	'%encodeURI%': encodeURI,
+	'%encodeURIComponent%': encodeURIComponent,
+	'%Error%': $Error,
+	'%eval%': eval, // eslint-disable-line no-eval
+	'%EvalError%': $EvalError,
+	'%Float16Array%': typeof Float16Array === 'undefined' ? undefined : Float16Array,
+	'%Float32Array%': typeof Float32Array === 'undefined' ? undefined : Float32Array,
+	'%Float64Array%': typeof Float64Array === 'undefined' ? undefined : Float64Array,
+	'%FinalizationRegistry%': typeof FinalizationRegistry === 'undefined' ? undefined : FinalizationRegistry,
+	'%Function%': $Function,
+	'%GeneratorFunction%': needsEval,
+	'%Int8Array%': typeof Int8Array === 'undefined' ? undefined : Int8Array,
+	'%Int16Array%': typeof Int16Array === 'undefined' ? undefined : Int16Array,
+	'%Int32Array%': typeof Int32Array === 'undefined' ? undefined : Int32Array,
+	'%isFinite%': isFinite,
+	'%isNaN%': isNaN,
+	'%IteratorPrototype%': hasSymbols && getProto ? getProto(getProto([][Symbol.iterator]())) : undefined,
+	'%JSON%': typeof JSON === 'object' ? JSON : undefined,
+	'%Map%': typeof Map === 'undefined' ? undefined : Map,
+	'%MapIteratorPrototype%': typeof Map === 'undefined' || !hasSymbols || !getProto ? undefined : getProto(new Map()[Symbol.iterator]()),
+	'%Math%': Math,
+	'%Number%': Number,
+	'%Object%': $Object,
+	'%Object.getOwnPropertyDescriptor%': $gOPD,
+	'%parseFloat%': parseFloat,
+	'%parseInt%': parseInt,
+	'%Promise%': typeof Promise === 'undefined' ? undefined : Promise,
+	'%Proxy%': typeof Proxy === 'undefined' ? undefined : Proxy,
+	'%RangeError%': $RangeError,
+	'%ReferenceError%': $ReferenceError,
+	'%Reflect%': typeof Reflect === 'undefined' ? undefined : Reflect,
+	'%RegExp%': RegExp,
+	'%Set%': typeof Set === 'undefined' ? undefined : Set,
+	'%SetIteratorPrototype%': typeof Set === 'undefined' || !hasSymbols || !getProto ? undefined : getProto(new Set()[Symbol.iterator]()),
+	'%SharedArrayBuffer%': typeof SharedArrayBuffer === 'undefined' ? undefined : SharedArrayBuffer,
+	'%String%': String,
+	'%StringIteratorPrototype%': hasSymbols && getProto ? getProto(''[Symbol.iterator]()) : undefined,
+	'%Symbol%': hasSymbols ? Symbol : undefined,
+	'%SyntaxError%': $SyntaxError,
+	'%ThrowTypeError%': ThrowTypeError,
+	'%TypedArray%': TypedArray,
+	'%TypeError%': $TypeError,
+	'%Uint8Array%': typeof Uint8Array === 'undefined' ? undefined : Uint8Array,
+	'%Uint8ClampedArray%': typeof Uint8ClampedArray === 'undefined' ? undefined : Uint8ClampedArray,
+	'%Uint16Array%': typeof Uint16Array === 'undefined' ? undefined : Uint16Array,
+	'%Uint32Array%': typeof Uint32Array === 'undefined' ? undefined : Uint32Array,
+	'%URIError%': $URIError,
+	'%WeakMap%': typeof WeakMap === 'undefined' ? undefined : WeakMap,
+	'%WeakRef%': typeof WeakRef === 'undefined' ? undefined : WeakRef,
+	'%WeakSet%': typeof WeakSet === 'undefined' ? undefined : WeakSet,
+
+	'%Function.prototype.call%': $call,
+	'%Function.prototype.apply%': $apply,
+	'%Object.defineProperty%': $defineProperty,
+	'%Object.getPrototypeOf%': $ObjectGPO,
+	'%Math.abs%': abs,
+	'%Math.floor%': floor,
+	'%Math.max%': max,
+	'%Math.min%': min,
+	'%Math.pow%': pow,
+	'%Math.round%': round,
+	'%Math.sign%': sign,
+	'%Reflect.getPrototypeOf%': $ReflectGPO
+};
+
+if (getProto) {
+	try {
+		null.error; // eslint-disable-line no-unused-expressions
+	} catch (e) {
+		// https://github.com/tc39/proposal-shadowrealm/pull/384#issuecomment-1364264229
+		var errorProto = getProto(getProto(e));
+		INTRINSICS['%Error.prototype%'] = errorProto;
+	}
+}
+
+var doEval = function doEval(name) {
+	var value;
+	if (name === '%AsyncFunction%') {
+		value = getEvalledConstructor('async function () {}');
+	} else if (name === '%GeneratorFunction%') {
+		value = getEvalledConstructor('function* () {}');
+	} else if (name === '%AsyncGeneratorFunction%') {
+		value = getEvalledConstructor('async function* () {}');
+	} else if (name === '%AsyncGenerator%') {
+		var fn = doEval('%AsyncGeneratorFunction%');
+		if (fn) {
+			value = fn.prototype;
+		}
+	} else if (name === '%AsyncIteratorPrototype%') {
+		var gen = doEval('%AsyncGenerator%');
+		if (gen && getProto) {
+			value = getProto(gen.prototype);
+		}
+	}
+
+	INTRINSICS[name] = value;
+
+	return value;
+};
+
+var LEGACY_ALIASES = {
+	__proto__: null,
+	'%ArrayBufferPrototype%': ['ArrayBuffer', 'prototype'],
+	'%ArrayPrototype%': ['Array', 'prototype'],
+	'%ArrayProto_entries%': ['Array', 'prototype', 'entries'],
+	'%ArrayProto_forEach%': ['Array', 'prototype', 'forEach'],
+	'%ArrayProto_keys%': ['Array', 'prototype', 'keys'],
+	'%ArrayProto_values%': ['Array', 'prototype', 'values'],
+	'%AsyncFunctionPrototype%': ['AsyncFunction', 'prototype'],
+	'%AsyncGenerator%': ['AsyncGeneratorFunction', 'prototype'],
+	'%AsyncGeneratorPrototype%': ['AsyncGeneratorFunction', 'prototype', 'prototype'],
+	'%BooleanPrototype%': ['Boolean', 'prototype'],
+	'%DataViewPrototype%': ['DataView', 'prototype'],
+	'%DatePrototype%': ['Date', 'prototype'],
+	'%ErrorPrototype%': ['Error', 'prototype'],
+	'%EvalErrorPrototype%': ['EvalError', 'prototype'],
+	'%Float32ArrayPrototype%': ['Float32Array', 'prototype'],
+	'%Float64ArrayPrototype%': ['Float64Array', 'prototype'],
+	'%FunctionPrototype%': ['Function', 'prototype'],
+	'%Generator%': ['GeneratorFunction', 'prototype'],
+	'%GeneratorPrototype%': ['GeneratorFunction', 'prototype', 'prototype'],
+	'%Int8ArrayPrototype%': ['Int8Array', 'prototype'],
+	'%Int16ArrayPrototype%': ['Int16Array', 'prototype'],
+	'%Int32ArrayPrototype%': ['Int32Array', 'prototype'],
+	'%JSONParse%': ['JSON', 'parse'],
+	'%JSONStringify%': ['JSON', 'stringify'],
+	'%MapPrototype%': ['Map', 'prototype'],
+	'%NumberPrototype%': ['Number', 'prototype'],
+	'%ObjectPrototype%': ['Object', 'prototype'],
+	'%ObjProto_toString%': ['Object', 'prototype', 'toString'],
+	'%ObjProto_valueOf%': ['Object', 'prototype', 'valueOf'],
+	'%PromisePrototype%': ['Promise', 'prototype'],
+	'%PromiseProto_then%': ['Promise', 'prototype', 'then'],
+	'%Promise_all%': ['Promise', 'all'],
+	'%Promise_reject%': ['Promise', 'reject'],
+	'%Promise_resolve%': ['Promise', 'resolve'],
+	'%RangeErrorPrototype%': ['RangeError', 'prototype'],
+	'%ReferenceErrorPrototype%': ['ReferenceError', 'prototype'],
+	'%RegExpPrototype%': ['RegExp', 'prototype'],
+	'%SetPrototype%': ['Set', 'prototype'],
+	'%SharedArrayBufferPrototype%': ['SharedArrayBuffer', 'prototype'],
+	'%StringPrototype%': ['String', 'prototype'],
+	'%SymbolPrototype%': ['Symbol', 'prototype'],
+	'%SyntaxErrorPrototype%': ['SyntaxError', 'prototype'],
+	'%TypedArrayPrototype%': ['TypedArray', 'prototype'],
+	'%TypeErrorPrototype%': ['TypeError', 'prototype'],
+	'%Uint8ArrayPrototype%': ['Uint8Array', 'prototype'],
+	'%Uint8ClampedArrayPrototype%': ['Uint8ClampedArray', 'prototype'],
+	'%Uint16ArrayPrototype%': ['Uint16Array', 'prototype'],
+	'%Uint32ArrayPrototype%': ['Uint32Array', 'prototype'],
+	'%URIErrorPrototype%': ['URIError', 'prototype'],
+	'%WeakMapPrototype%': ['WeakMap', 'prototype'],
+	'%WeakSetPrototype%': ['WeakSet', 'prototype']
+};
+
+var bind = require('function-bind');
+var hasOwn = require('hasown');
+var $concat = bind.call($call, Array.prototype.concat);
+var $spliceApply = bind.call($apply, Array.prototype.splice);
+var $replace = bind.call($call, String.prototype.replace);
+var $strSlice = bind.call($call, String.prototype.slice);
+var $exec = bind.call($call, RegExp.prototype.exec);
+
+/* adapted from https://github.com/lodash/lodash/blob/4.17.15/dist/lodash.js#L6735-L6744 */
+var rePropName = /[^%.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|%$))/g;
+var reEscapeChar = /\\(\\)?/g; /** Used to match backslashes in property paths. */
+var stringToPath = function stringToPath(string) {
+	var first = $strSlice(string, 0, 1);
+	var last = $strSlice(string, -1);
+	if (first === '%' && last !== '%') {
+		throw new $SyntaxError('invalid intrinsic syntax, expected closing `%`');
+	} else if (last === '%' && first !== '%') {
+		throw new $SyntaxError('invalid intrinsic syntax, expected opening `%`');
+	}
+	var result = [];
+	$replace(string, rePropName, function (match, number, quote, subString) {
+		result[result.length] = quote ? $replace(subString, reEscapeChar, '$1') : number || match;
+	});
+	return result;
+};
+/* end adaptation */
+
+var getBaseIntrinsic = function getBaseIntrinsic(name, allowMissing) {
+	var intrinsicName = name;
+	var alias;
+	if (hasOwn(LEGACY_ALIASES, intrinsicName)) {
+		alias = LEGACY_ALIASES[intrinsicName];
+		intrinsicName = '%' + alias[0] + '%';
+	}
+
+	if (hasOwn(INTRINSICS, intrinsicName)) {
+		var value = INTRINSICS[intrinsicName];
+		if (value === needsEval) {
+			value = doEval(intrinsicName);
+		}
+		if (typeof value === 'undefined' && !allowMissing) {
+			throw new $TypeError('intrinsic ' + name + ' exists, but is not available. Please file an issue!');
+		}
+
+		return {
+			alias: alias,
+			name: intrinsicName,
+			value: value
+		};
+	}
+
+	throw new $SyntaxError('intrinsic ' + name + ' does not exist!');
+};
+
+module.exports = function GetIntrinsic(name, allowMissing) {
+	if (typeof name !== 'string' || name.length === 0) {
+		throw new $TypeError('intrinsic name must be a non-empty string');
+	}
+	if (arguments.length > 1 && typeof allowMissing !== 'boolean') {
+		throw new $TypeError('"allowMissing" argument must be a boolean');
+	}
+
+	if ($exec(/^%?[^%]*%?$/, name) === null) {
+		throw new $SyntaxError('`%` may not be present anywhere but at the beginning and end of the intrinsic name');
+	}
+	var parts = stringToPath(name);
+	var intrinsicBaseName = parts.length > 0 ? parts[0] : '';
+
+	var intrinsic = getBaseIntrinsic('%' + intrinsicBaseName + '%', allowMissing);
+	var intrinsicRealName = intrinsic.name;
+	var value = intrinsic.value;
+	var skipFurtherCaching = false;
+
+	var alias = intrinsic.alias;
+	if (alias) {
+		intrinsicBaseName = alias[0];
+		$spliceApply(parts, $concat([0, 1], alias));
+	}
+
+	for (var i = 1, isOwn = true; i < parts.length; i += 1) {
+		var part = parts[i];
+		var first = $strSlice(part, 0, 1);
+		var last = $strSlice(part, -1);
+		if (
+			(
+				(first === '"' || first === "'" || first === '`')
+				|| (last === '"' || last === "'" || last === '`')
+			)
+			&& first !== last
+		) {
+			throw new $SyntaxError('property names with quotes must have matching quotes');
+		}
+		if (part === 'constructor' || !isOwn) {
+			skipFurtherCaching = true;
+		}
+
+		intrinsicBaseName += '.' + part;
+		intrinsicRealName = '%' + intrinsicBaseName + '%';
+
+		if (hasOwn(INTRINSICS, intrinsicRealName)) {
+			value = INTRINSICS[intrinsicRealName];
+		} else if (value != null) {
+			if (!(part in value)) {
+				if (!allowMissing) {
+					throw new $TypeError('base intrinsic for ' + name + ' exists, but the property is not available.');
+				}
+				return void undefined;
+			}
+			if ($gOPD && (i + 1) >= parts.length) {
+				var desc = $gOPD(value, part);
+				isOwn = !!desc;
+
+				// By convention, when a data property is converted to an accessor
+				// property to emulate a data property that does not suffer from
+				// the override mistake, that accessor's getter is marked with
+				// an `originalValue` property. Here, when we detect this, we
+				// uphold the illusion by pretending to see that original data
+				// property, i.e., returning the value rather than the getter
+				// itself.
+				if (isOwn && 'get' in desc && !('originalValue' in desc.get)) {
+					value = desc.get;
+				} else {
+					value = value[part];
+				}
+			} else {
+				isOwn = hasOwn(value, part);
+				value = value[part];
+			}
+
+			if (isOwn && !skipFurtherCaching) {
+				INTRINSICS[intrinsicRealName] = value;
+			}
+		}
+	}
+	return value;
+};
+
+},{"call-bind-apply-helpers/functionApply":43,"call-bind-apply-helpers/functionCall":44,"es-define-property":51,"es-errors":53,"es-errors/eval":52,"es-errors/range":54,"es-errors/ref":55,"es-errors/syntax":56,"es-errors/type":57,"es-errors/uri":58,"es-object-atoms":59,"function-bind":61,"get-proto":65,"get-proto/Object.getPrototypeOf":63,"get-proto/Reflect.getPrototypeOf":64,"gopd":67,"has-symbols":69,"hasown":71,"math-intrinsics/abs":76,"math-intrinsics/floor":77,"math-intrinsics/max":79,"math-intrinsics/min":80,"math-intrinsics/pow":81,"math-intrinsics/round":82,"math-intrinsics/sign":83}],63:[function(require,module,exports){
+'use strict';
+
+var $Object = require('es-object-atoms');
+
+/** @type {import('./Object.getPrototypeOf')} */
+module.exports = $Object.getPrototypeOf || null;
+
+},{"es-object-atoms":59}],64:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./Reflect.getPrototypeOf')} */
+module.exports = (typeof Reflect !== 'undefined' && Reflect.getPrototypeOf) || null;
+
+},{}],65:[function(require,module,exports){
+'use strict';
+
+var reflectGetProto = require('./Reflect.getPrototypeOf');
+var originalGetProto = require('./Object.getPrototypeOf');
+
+var getDunderProto = require('dunder-proto/get');
+
+/** @type {import('.')} */
+module.exports = reflectGetProto
+	? function getProto(O) {
+		// @ts-expect-error TS can't narrow inside a closure, for some reason
+		return reflectGetProto(O);
+	}
+	: originalGetProto
+		? function getProto(O) {
+			if (!O || (typeof O !== 'object' && typeof O !== 'function')) {
+				throw new TypeError('getProto: not an object');
+			}
+			// @ts-expect-error TS can't narrow inside a closure, for some reason
+			return originalGetProto(O);
+		}
+		: getDunderProto
+			? function getProto(O) {
+				// @ts-expect-error TS can't narrow inside a closure, for some reason
+				return getDunderProto(O);
+			}
+			: null;
+
+},{"./Object.getPrototypeOf":63,"./Reflect.getPrototypeOf":64,"dunder-proto/get":50}],66:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./gOPD')} */
+module.exports = Object.getOwnPropertyDescriptor;
+
+},{}],67:[function(require,module,exports){
+'use strict';
+
+/** @type {import('.')} */
+var $gOPD = require('./gOPD');
+
+if ($gOPD) {
+	try {
+		$gOPD([], 'length');
+	} catch (e) {
+		// IE 8 has a broken gOPD
+		$gOPD = null;
+	}
+}
+
+module.exports = $gOPD;
+
+},{"./gOPD":66}],68:[function(require,module,exports){
+'use strict';
+
+var $defineProperty = require('es-define-property');
+
+var hasPropertyDescriptors = function hasPropertyDescriptors() {
+	return !!$defineProperty;
+};
+
+hasPropertyDescriptors.hasArrayLengthDefineBug = function hasArrayLengthDefineBug() {
+	// node v0.6 has a bug where array lengths can be Set but not Defined
+	if (!$defineProperty) {
+		return null;
+	}
+	try {
+		return $defineProperty([], 'length', { value: 1 }).length !== 1;
+	} catch (e) {
+		// In Firefox 4-22, defining length on an array throws an exception.
+		return true;
+	}
+};
+
+module.exports = hasPropertyDescriptors;
+
+},{"es-define-property":51}],69:[function(require,module,exports){
+'use strict';
+
+var origSymbol = typeof Symbol !== 'undefined' && Symbol;
+var hasSymbolSham = require('./shams');
+
+/** @type {import('.')} */
+module.exports = function hasNativeSymbols() {
+	if (typeof origSymbol !== 'function') { return false; }
+	if (typeof Symbol !== 'function') { return false; }
+	if (typeof origSymbol('foo') !== 'symbol') { return false; }
+	if (typeof Symbol('bar') !== 'symbol') { return false; }
+
+	return hasSymbolSham();
+};
+
+},{"./shams":70}],70:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./shams')} */
+/* eslint complexity: [2, 18], max-statements: [2, 33] */
+module.exports = function hasSymbols() {
+	if (typeof Symbol !== 'function' || typeof Object.getOwnPropertySymbols !== 'function') { return false; }
+	if (typeof Symbol.iterator === 'symbol') { return true; }
+
+	/** @type {{ [k in symbol]?: unknown }} */
+	var obj = {};
+	var sym = Symbol('test');
+	var symObj = Object(sym);
+	if (typeof sym === 'string') { return false; }
+
+	if (Object.prototype.toString.call(sym) !== '[object Symbol]') { return false; }
+	if (Object.prototype.toString.call(symObj) !== '[object Symbol]') { return false; }
+
+	// temp disabled per https://github.com/ljharb/object.assign/issues/17
+	// if (sym instanceof Symbol) { return false; }
+	// temp disabled per https://github.com/WebReflection/get-own-property-symbols/issues/4
+	// if (!(symObj instanceof Symbol)) { return false; }
+
+	// if (typeof Symbol.prototype.toString !== 'function') { return false; }
+	// if (String(sym) !== Symbol.prototype.toString.call(sym)) { return false; }
+
+	var symVal = 42;
+	obj[sym] = symVal;
+	for (var _ in obj) { return false; } // eslint-disable-line no-restricted-syntax, no-unreachable-loop
+	if (typeof Object.keys === 'function' && Object.keys(obj).length !== 0) { return false; }
+
+	if (typeof Object.getOwnPropertyNames === 'function' && Object.getOwnPropertyNames(obj).length !== 0) { return false; }
+
+	var syms = Object.getOwnPropertySymbols(obj);
+	if (syms.length !== 1 || syms[0] !== sym) { return false; }
+
+	if (!Object.prototype.propertyIsEnumerable.call(obj, sym)) { return false; }
+
+	if (typeof Object.getOwnPropertyDescriptor === 'function') {
+		// eslint-disable-next-line no-extra-parens
+		var descriptor = /** @type {PropertyDescriptor} */ (Object.getOwnPropertyDescriptor(obj, sym));
+		if (descriptor.value !== symVal || descriptor.enumerable !== true) { return false; }
+	}
+
+	return true;
+};
+
+},{}],71:[function(require,module,exports){
+'use strict';
+
+var call = Function.prototype.call;
+var $hasOwn = Object.prototype.hasOwnProperty;
+var bind = require('function-bind');
+
+/** @type {import('.')} */
+module.exports = bind.call(call, $hasOwn);
+
+},{"function-bind":61}],72:[function(require,module,exports){
 /*!
  * jQuery JavaScript Library v2.1.4
  * http://jquery.com/
@@ -14963,7 +19072,663 @@ return jQuery;
 
 }));
 
-},{}],6:[function(require,module,exports){
+},{}],73:[function(require,module,exports){
+'use strict';
+
+exports.parse = require('./lib/parse');
+exports.stringify = require('./lib/stringify');
+
+},{"./lib/parse":74,"./lib/stringify":75}],74:[function(require,module,exports){
+'use strict';
+
+var at; // The index of the current character
+var ch; // The current character
+var escapee = {
+	'"': '"',
+	'\\': '\\',
+	'/': '/',
+	b: '\b',
+	f: '\f',
+	n: '\n',
+	r: '\r',
+	t: '\t'
+};
+var text;
+
+// Call error when something is wrong.
+function error(m) {
+	throw {
+		name: 'SyntaxError',
+		message: m,
+		at: at,
+		text: text
+	};
+}
+
+function next(c) {
+	// If a c parameter is provided, verify that it matches the current character.
+	if (c && c !== ch) {
+		error("Expected '" + c + "' instead of '" + ch + "'");
+	}
+
+	// Get the next character. When there are no more characters, return the empty string.
+
+	ch = text.charAt(at);
+	at += 1;
+	return ch;
+}
+
+function number() {
+	// Parse a number value.
+	var num;
+	var str = '';
+
+	if (ch === '-') {
+		str = '-';
+		next('-');
+	}
+	while (ch >= '0' && ch <= '9') {
+		str += ch;
+		next();
+	}
+	if (ch === '.') {
+		str += '.';
+		while (next() && ch >= '0' && ch <= '9') {
+			str += ch;
+		}
+	}
+	if (ch === 'e' || ch === 'E') {
+		str += ch;
+		next();
+		if (ch === '-' || ch === '+') {
+			str += ch;
+			next();
+		}
+		while (ch >= '0' && ch <= '9') {
+			str += ch;
+			next();
+		}
+	}
+	num = Number(str);
+	if (!isFinite(num)) {
+		error('Bad number');
+	}
+	return num;
+}
+
+function string() {
+	// Parse a string value.
+	var hex;
+	var i;
+	var str = '';
+	var uffff;
+
+	// When parsing for string values, we must look for " and \ characters.
+	if (ch === '"') {
+		while (next()) {
+			if (ch === '"') {
+				next();
+				return str;
+			} else if (ch === '\\') {
+				next();
+				if (ch === 'u') {
+					uffff = 0;
+					for (i = 0; i < 4; i += 1) {
+						hex = parseInt(next(), 16);
+						if (!isFinite(hex)) {
+							break;
+						}
+						uffff = (uffff * 16) + hex;
+					}
+					str += String.fromCharCode(uffff);
+				} else if (typeof escapee[ch] === 'string') {
+					str += escapee[ch];
+				} else {
+					break;
+				}
+			} else {
+				str += ch;
+			}
+		}
+	}
+	error('Bad string');
+}
+
+// Skip whitespace.
+function white() {
+	while (ch && ch <= ' ') {
+		next();
+	}
+}
+
+// true, false, or null.
+function word() {
+	switch (ch) {
+		case 't':
+			next('t');
+			next('r');
+			next('u');
+			next('e');
+			return true;
+		case 'f':
+			next('f');
+			next('a');
+			next('l');
+			next('s');
+			next('e');
+			return false;
+		case 'n':
+			next('n');
+			next('u');
+			next('l');
+			next('l');
+			return null;
+		default:
+			error("Unexpected '" + ch + "'");
+	}
+}
+
+// Parse an array value.
+function array() {
+	var arr = [];
+
+	if (ch === '[') {
+		next('[');
+		white();
+		if (ch === ']') {
+			next(']');
+			return arr; // empty array
+		}
+		while (ch) {
+			arr.push(value()); // eslint-disable-line no-use-before-define
+			white();
+			if (ch === ']') {
+				next(']');
+				return arr;
+			}
+			next(',');
+			white();
+		}
+	}
+	error('Bad array');
+}
+
+// Parse an object value.
+function object() {
+	var key;
+	var obj = {};
+
+	if (ch === '{') {
+		next('{');
+		white();
+		if (ch === '}') {
+			next('}');
+			return obj; // empty object
+		}
+		while (ch) {
+			key = string();
+			white();
+			next(':');
+			if (Object.prototype.hasOwnProperty.call(obj, key)) {
+				error('Duplicate key "' + key + '"');
+			}
+			obj[key] = value(); // eslint-disable-line no-use-before-define
+			white();
+			if (ch === '}') {
+				next('}');
+				return obj;
+			}
+			next(',');
+			white();
+		}
+	}
+	error('Bad object');
+}
+
+// Parse a JSON value. It could be an object, an array, a string, a number, or a word.
+function value() {
+	white();
+	switch (ch) {
+		case '{':
+			return object();
+		case '[':
+			return array();
+		case '"':
+			return string();
+		case '-':
+			return number();
+		default:
+			return ch >= '0' && ch <= '9' ? number() : word();
+	}
+}
+
+// Return the json_parse function. It will have access to all of the above functions and variables.
+module.exports = function (source, reviver) {
+	var result;
+
+	text = source;
+	at = 0;
+	ch = ' ';
+	result = value();
+	white();
+	if (ch) {
+		error('Syntax error');
+	}
+
+	// If there is a reviver function, we recursively walk the new structure,
+	// passing each name/value pair to the reviver function for possible
+	// transformation, starting with a temporary root object that holds the result
+	// in an empty key. If there is not a reviver function, we simply return the
+	// result.
+
+	return typeof reviver === 'function' ? (function walk(holder, key) {
+		var k;
+		var v;
+		var val = holder[key];
+		if (val && typeof val === 'object') {
+			for (k in value) {
+				if (Object.prototype.hasOwnProperty.call(val, k)) {
+					v = walk(val, k);
+					if (typeof v === 'undefined') {
+						delete val[k];
+					} else {
+						val[k] = v;
+					}
+				}
+			}
+		}
+		return reviver.call(holder, key, val);
+	}({ '': result }, '')) : result;
+};
+
+},{}],75:[function(require,module,exports){
+'use strict';
+
+var escapable = /[\\"\x00-\x1f\x7f-\x9f\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g;
+var gap;
+var indent;
+var meta = { // table of character substitutions
+	'\b': '\\b',
+	'\t': '\\t',
+	'\n': '\\n',
+	'\f': '\\f',
+	'\r': '\\r',
+	'"': '\\"',
+	'\\': '\\\\'
+};
+var rep;
+
+function quote(string) {
+	// If the string contains no control characters, no quote characters, and no
+	// backslash characters, then we can safely slap some quotes around it.
+	// Otherwise we must also replace the offending characters with safe escape sequences.
+
+	escapable.lastIndex = 0;
+	return escapable.test(string) ? '"' + string.replace(escapable, function (a) {
+		var c = meta[a];
+		return typeof c === 'string' ? c
+			: '\\u' + ('0000' + a.charCodeAt(0).toString(16)).slice(-4);
+	}) + '"' : '"' + string + '"';
+}
+
+function str(key, holder) {
+	// Produce a string from holder[key].
+	var i; // The loop counter.
+	var k; // The member key.
+	var v; // The member value.
+	var length;
+	var mind = gap;
+	var partial;
+	var value = holder[key];
+
+	// If the value has a toJSON method, call it to obtain a replacement value.
+	if (value && typeof value === 'object' && typeof value.toJSON === 'function') {
+		value = value.toJSON(key);
+	}
+
+	// If we were called with a replacer function, then call the replacer to obtain a replacement value.
+	if (typeof rep === 'function') {
+		value = rep.call(holder, key, value);
+	}
+
+	// What happens next depends on the value's type.
+	switch (typeof value) {
+		case 'string':
+			return quote(value);
+
+		case 'number':
+			// JSON numbers must be finite. Encode non-finite numbers as null.
+			return isFinite(value) ? String(value) : 'null';
+
+		case 'boolean':
+		case 'null':
+			// If the value is a boolean or null, convert it to a string. Note:
+			// typeof null does not produce 'null'. The case is included here in
+			// the remote chance that this gets fixed someday.
+			return String(value);
+
+		case 'object':
+			if (!value) {
+				return 'null';
+			}
+			gap += indent;
+			partial = [];
+
+			// Array.isArray
+			if (Object.prototype.toString.apply(value) === '[object Array]') {
+				length = value.length;
+				for (i = 0; i < length; i += 1) {
+					partial[i] = str(i, value) || 'null';
+				}
+
+				// Join all of the elements together, separated with commas, and wrap them in brackets.
+				v = partial.length === 0 ? '[]' : gap
+					? '[\n' + gap + partial.join(',\n' + gap) + '\n' + mind + ']'
+					: '[' + partial.join(',') + ']';
+				gap = mind;
+				return v;
+			}
+
+			// If the replacer is an array, use it to select the members to be stringified.
+			if (rep && typeof rep === 'object') {
+				length = rep.length;
+				for (i = 0; i < length; i += 1) {
+					k = rep[i];
+					if (typeof k === 'string') {
+						v = str(k, value);
+						if (v) {
+							partial.push(quote(k) + (gap ? ': ' : ':') + v);
+						}
+					}
+				}
+			} else {
+				// Otherwise, iterate through all of the keys in the object.
+				for (k in value) {
+					if (Object.prototype.hasOwnProperty.call(value, k)) {
+						v = str(k, value);
+						if (v) {
+							partial.push(quote(k) + (gap ? ': ' : ':') + v);
+						}
+					}
+				}
+			}
+
+			// Join all of the member texts together, separated with commas, and wrap them in braces.
+
+			v = partial.length === 0 ? '{}' : gap
+				? '{\n' + gap + partial.join(',\n' + gap) + '\n' + mind + '}'
+				: '{' + partial.join(',') + '}';
+			gap = mind;
+			return v;
+		default:
+	}
+}
+
+module.exports = function (value, replacer, space) {
+	var i;
+	gap = '';
+	indent = '';
+
+	// If the space parameter is a number, make an indent string containing that many spaces.
+	if (typeof space === 'number') {
+		for (i = 0; i < space; i += 1) {
+			indent += ' ';
+		}
+	} else if (typeof space === 'string') {
+		// If the space parameter is a string, it will be used as the indent string.
+		indent = space;
+	}
+
+	// If there is a replacer, it must be a function or an array. Otherwise, throw an error.
+	rep = replacer;
+	if (
+		replacer
+		&& typeof replacer !== 'function'
+		&& (typeof replacer !== 'object' || typeof replacer.length !== 'number')
+	) {
+		throw new Error('JSON.stringify');
+	}
+
+	// Make a fake root object containing our value under the key of ''.
+	// Return the result of stringifying the value.
+	return str('', { '': value });
+};
+
+},{}],76:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./abs')} */
+module.exports = Math.abs;
+
+},{}],77:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./floor')} */
+module.exports = Math.floor;
+
+},{}],78:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./isNaN')} */
+module.exports = Number.isNaN || function isNaN(a) {
+	return a !== a;
+};
+
+},{}],79:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./max')} */
+module.exports = Math.max;
+
+},{}],80:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./min')} */
+module.exports = Math.min;
+
+},{}],81:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./pow')} */
+module.exports = Math.pow;
+
+},{}],82:[function(require,module,exports){
+'use strict';
+
+/** @type {import('./round')} */
+module.exports = Math.round;
+
+},{}],83:[function(require,module,exports){
+'use strict';
+
+var $isNaN = require('./isNaN');
+
+/** @type {import('./sign')} */
+module.exports = function sign(number) {
+	if ($isNaN(number) || number === 0) {
+		return number;
+	}
+	return number < 0 ? -1 : +1;
+};
+
+},{"./isNaN":78}],84:[function(require,module,exports){
+'use strict';
+
+var keysShim;
+if (!Object.keys) {
+	// modified from https://github.com/es-shims/es5-shim
+	var has = Object.prototype.hasOwnProperty;
+	var toStr = Object.prototype.toString;
+	var isArgs = require('./isArguments'); // eslint-disable-line global-require
+	var isEnumerable = Object.prototype.propertyIsEnumerable;
+	var hasDontEnumBug = !isEnumerable.call({ toString: null }, 'toString');
+	var hasProtoEnumBug = isEnumerable.call(function () {}, 'prototype');
+	var dontEnums = [
+		'toString',
+		'toLocaleString',
+		'valueOf',
+		'hasOwnProperty',
+		'isPrototypeOf',
+		'propertyIsEnumerable',
+		'constructor'
+	];
+	var equalsConstructorPrototype = function (o) {
+		var ctor = o.constructor;
+		return ctor && ctor.prototype === o;
+	};
+	var excludedKeys = {
+		$applicationCache: true,
+		$console: true,
+		$external: true,
+		$frame: true,
+		$frameElement: true,
+		$frames: true,
+		$innerHeight: true,
+		$innerWidth: true,
+		$onmozfullscreenchange: true,
+		$onmozfullscreenerror: true,
+		$outerHeight: true,
+		$outerWidth: true,
+		$pageXOffset: true,
+		$pageYOffset: true,
+		$parent: true,
+		$scrollLeft: true,
+		$scrollTop: true,
+		$scrollX: true,
+		$scrollY: true,
+		$self: true,
+		$webkitIndexedDB: true,
+		$webkitStorageInfo: true,
+		$window: true
+	};
+	var hasAutomationEqualityBug = (function () {
+		/* global window */
+		if (typeof window === 'undefined') { return false; }
+		for (var k in window) {
+			try {
+				if (!excludedKeys['$' + k] && has.call(window, k) && window[k] !== null && typeof window[k] === 'object') {
+					try {
+						equalsConstructorPrototype(window[k]);
+					} catch (e) {
+						return true;
+					}
+				}
+			} catch (e) {
+				return true;
+			}
+		}
+		return false;
+	}());
+	var equalsConstructorPrototypeIfNotBuggy = function (o) {
+		/* global window */
+		if (typeof window === 'undefined' || !hasAutomationEqualityBug) {
+			return equalsConstructorPrototype(o);
+		}
+		try {
+			return equalsConstructorPrototype(o);
+		} catch (e) {
+			return false;
+		}
+	};
+
+	keysShim = function keys(object) {
+		var isObject = object !== null && typeof object === 'object';
+		var isFunction = toStr.call(object) === '[object Function]';
+		var isArguments = isArgs(object);
+		var isString = isObject && toStr.call(object) === '[object String]';
+		var theKeys = [];
+
+		if (!isObject && !isFunction && !isArguments) {
+			throw new TypeError('Object.keys called on a non-object');
+		}
+
+		var skipProto = hasProtoEnumBug && isFunction;
+		if (isString && object.length > 0 && !has.call(object, 0)) {
+			for (var i = 0; i < object.length; ++i) {
+				theKeys.push(String(i));
+			}
+		}
+
+		if (isArguments && object.length > 0) {
+			for (var j = 0; j < object.length; ++j) {
+				theKeys.push(String(j));
+			}
+		} else {
+			for (var name in object) {
+				if (!(skipProto && name === 'prototype') && has.call(object, name)) {
+					theKeys.push(String(name));
+				}
+			}
+		}
+
+		if (hasDontEnumBug) {
+			var skipConstructor = equalsConstructorPrototypeIfNotBuggy(object);
+
+			for (var k = 0; k < dontEnums.length; ++k) {
+				if (!(skipConstructor && dontEnums[k] === 'constructor') && has.call(object, dontEnums[k])) {
+					theKeys.push(dontEnums[k]);
+				}
+			}
+		}
+		return theKeys;
+	};
+}
+module.exports = keysShim;
+
+},{"./isArguments":86}],85:[function(require,module,exports){
+'use strict';
+
+var slice = Array.prototype.slice;
+var isArgs = require('./isArguments');
+
+var origKeys = Object.keys;
+var keysShim = origKeys ? function keys(o) { return origKeys(o); } : require('./implementation');
+
+var originalKeys = Object.keys;
+
+keysShim.shim = function shimObjectKeys() {
+	if (Object.keys) {
+		var keysWorksWithArguments = (function () {
+			// Safari 5.0 bug
+			var args = Object.keys(arguments);
+			return args && args.length === arguments.length;
+		}(1, 2));
+		if (!keysWorksWithArguments) {
+			Object.keys = function keys(object) { // eslint-disable-line func-name-matching
+				if (isArgs(object)) {
+					return originalKeys(slice.call(object));
+				}
+				return originalKeys(object);
+			};
+		}
+	} else {
+		Object.keys = keysShim;
+	}
+	return Object.keys || keysShim;
+};
+
+module.exports = keysShim;
+
+},{"./implementation":84,"./isArguments":86}],86:[function(require,module,exports){
+'use strict';
+
+var toStr = Object.prototype.toString;
+
+module.exports = function isArguments(value) {
+	var str = toStr.call(value);
+	var isArgs = str === '[object Arguments]';
+	if (!isArgs) {
+		isArgs = str !== '[object Array]' &&
+			value !== null &&
+			typeof value === 'object' &&
+			typeof value.length === 'number' &&
+			value.length >= 0 &&
+			toStr.call(value.callee) === '[object Function]';
+	}
+	return isArgs;
+};
+
+},{}],87:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -15149,7 +19914,230 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],7:[function(require,module,exports){
+},{}],88:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+'use strict';
+
+// If obj.hasOwnProperty has been overridden, then calling
+// obj.hasOwnProperty(prop) will break.
+// See: https://github.com/joyent/node/issues/1707
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+module.exports = function(qs, sep, eq, options) {
+  sep = sep || '&';
+  eq = eq || '=';
+  var obj = {};
+
+  if (typeof qs !== 'string' || qs.length === 0) {
+    return obj;
+  }
+
+  var regexp = /\+/g;
+  qs = qs.split(sep);
+
+  var maxKeys = 1000;
+  if (options && typeof options.maxKeys === 'number') {
+    maxKeys = options.maxKeys;
+  }
+
+  var len = qs.length;
+  // maxKeys <= 0 means that we should not limit keys count
+  if (maxKeys > 0 && len > maxKeys) {
+    len = maxKeys;
+  }
+
+  for (var i = 0; i < len; ++i) {
+    var x = qs[i].replace(regexp, '%20'),
+        idx = x.indexOf(eq),
+        kstr, vstr, k, v;
+
+    if (idx >= 0) {
+      kstr = x.substr(0, idx);
+      vstr = x.substr(idx + 1);
+    } else {
+      kstr = x;
+      vstr = '';
+    }
+
+    k = decodeURIComponent(kstr);
+    v = decodeURIComponent(vstr);
+
+    if (!hasOwnProperty(obj, k)) {
+      obj[k] = v;
+    } else if (isArray(obj[k])) {
+      obj[k].push(v);
+    } else {
+      obj[k] = [obj[k], v];
+    }
+  }
+
+  return obj;
+};
+
+var isArray = Array.isArray || function (xs) {
+  return Object.prototype.toString.call(xs) === '[object Array]';
+};
+
+},{}],89:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+'use strict';
+
+var stringifyPrimitive = function(v) {
+  switch (typeof v) {
+    case 'string':
+      return v;
+
+    case 'boolean':
+      return v ? 'true' : 'false';
+
+    case 'number':
+      return isFinite(v) ? v : '';
+
+    default:
+      return '';
+  }
+};
+
+module.exports = function(obj, sep, eq, name) {
+  sep = sep || '&';
+  eq = eq || '=';
+  if (obj === null) {
+    obj = undefined;
+  }
+
+  if (typeof obj === 'object') {
+    return map(objectKeys(obj), function(k) {
+      var ks = encodeURIComponent(stringifyPrimitive(k)) + eq;
+      if (isArray(obj[k])) {
+        return map(obj[k], function(v) {
+          return ks + encodeURIComponent(stringifyPrimitive(v));
+        }).join(sep);
+      } else {
+        return ks + encodeURIComponent(stringifyPrimitive(obj[k]));
+      }
+    }).join(sep);
+
+  }
+
+  if (!name) return '';
+  return encodeURIComponent(stringifyPrimitive(name)) + eq +
+         encodeURIComponent(stringifyPrimitive(obj));
+};
+
+var isArray = Array.isArray || function (xs) {
+  return Object.prototype.toString.call(xs) === '[object Array]';
+};
+
+function map (xs, f) {
+  if (xs.map) return xs.map(f);
+  var res = [];
+  for (var i = 0; i < xs.length; i++) {
+    res.push(f(xs[i], i));
+  }
+  return res;
+}
+
+var objectKeys = Object.keys || function (obj) {
+  var res = [];
+  for (var key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) res.push(key);
+  }
+  return res;
+};
+
+},{}],90:[function(require,module,exports){
+'use strict';
+
+exports.decode = exports.parse = require('./decode');
+exports.encode = exports.stringify = require('./encode');
+
+},{"./decode":88,"./encode":89}],91:[function(require,module,exports){
+'use strict';
+
+var GetIntrinsic = require('get-intrinsic');
+var define = require('define-data-property');
+var hasDescriptors = require('has-property-descriptors')();
+var gOPD = require('gopd');
+
+var $TypeError = require('es-errors/type');
+var $floor = GetIntrinsic('%Math.floor%');
+
+/** @type {import('.')} */
+module.exports = function setFunctionLength(fn, length) {
+	if (typeof fn !== 'function') {
+		throw new $TypeError('`fn` is not a function');
+	}
+	if (typeof length !== 'number' || length < 0 || length > 0xFFFFFFFF || $floor(length) !== length) {
+		throw new $TypeError('`length` must be a positive 32-bit integer');
+	}
+
+	var loose = arguments.length > 2 && !!arguments[2];
+
+	var functionLengthIsConfigurable = true;
+	var functionLengthIsWritable = true;
+	if ('length' in fn && gOPD) {
+		var desc = gOPD(fn, 'length');
+		if (desc && !desc.configurable) {
+			functionLengthIsConfigurable = false;
+		}
+		if (desc && !desc.writable) {
+			functionLengthIsWritable = false;
+		}
+	}
+
+	if (functionLengthIsConfigurable || functionLengthIsWritable || !loose) {
+		if (hasDescriptors) {
+			define(/** @type {Parameters<define>[0]} */ (fn), 'length', length, true, true);
+		} else {
+			define(/** @type {Parameters<define>[0]} */ (fn), 'length', length);
+		}
+	}
+	return fn;
+};
+
+},{"define-data-property":49,"es-errors/type":57,"get-intrinsic":62,"gopd":67,"has-property-descriptors":68}],92:[function(require,module,exports){
 //     Underscore.js 1.7.0
 //     http://underscorejs.org
 //     (c) 2009-2014 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
@@ -16566,7 +21554,716 @@ process.umask = function() { return 0; };
   }
 }.call(this));
 
-},{}],8:[function(require,module,exports){
+},{}],93:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var punycode = require('punycode');
+
+exports.parse = urlParse;
+exports.resolve = urlResolve;
+exports.resolveObject = urlResolveObject;
+exports.format = urlFormat;
+
+exports.Url = Url;
+
+function Url() {
+  this.protocol = null;
+  this.slashes = null;
+  this.auth = null;
+  this.host = null;
+  this.port = null;
+  this.hostname = null;
+  this.hash = null;
+  this.search = null;
+  this.query = null;
+  this.pathname = null;
+  this.path = null;
+  this.href = null;
+}
+
+// Reference: RFC 3986, RFC 1808, RFC 2396
+
+// define these here so at least they only have to be
+// compiled once on the first module load.
+var protocolPattern = /^([a-z0-9.+-]+:)/i,
+    portPattern = /:[0-9]*$/,
+
+    // RFC 2396: characters reserved for delimiting URLs.
+    // We actually just auto-escape these.
+    delims = ['<', '>', '"', '`', ' ', '\r', '\n', '\t'],
+
+    // RFC 2396: characters not allowed for various reasons.
+    unwise = ['{', '}', '|', '\\', '^', '`'].concat(delims),
+
+    // Allowed by RFCs, but cause of XSS attacks.  Always escape these.
+    autoEscape = ['\''].concat(unwise),
+    // Characters that are never ever allowed in a hostname.
+    // Note that any invalid chars are also handled, but these
+    // are the ones that are *expected* to be seen, so we fast-path
+    // them.
+    nonHostChars = ['%', '/', '?', ';', '#'].concat(autoEscape),
+    hostEndingChars = ['/', '?', '#'],
+    hostnameMaxLen = 255,
+    hostnamePartPattern = /^[a-z0-9A-Z_-]{0,63}$/,
+    hostnamePartStart = /^([a-z0-9A-Z_-]{0,63})(.*)$/,
+    // protocols that can allow "unsafe" and "unwise" chars.
+    unsafeProtocol = {
+      'javascript': true,
+      'javascript:': true
+    },
+    // protocols that never have a hostname.
+    hostlessProtocol = {
+      'javascript': true,
+      'javascript:': true
+    },
+    // protocols that always contain a // bit.
+    slashedProtocol = {
+      'http': true,
+      'https': true,
+      'ftp': true,
+      'gopher': true,
+      'file': true,
+      'http:': true,
+      'https:': true,
+      'ftp:': true,
+      'gopher:': true,
+      'file:': true
+    },
+    querystring = require('querystring');
+
+function urlParse(url, parseQueryString, slashesDenoteHost) {
+  if (url && isObject(url) && url instanceof Url) return url;
+
+  var u = new Url;
+  u.parse(url, parseQueryString, slashesDenoteHost);
+  return u;
+}
+
+Url.prototype.parse = function(url, parseQueryString, slashesDenoteHost) {
+  if (!isString(url)) {
+    throw new TypeError("Parameter 'url' must be a string, not " + typeof url);
+  }
+
+  var rest = url;
+
+  // trim before proceeding.
+  // This is to support parse stuff like "  http://foo.com  \n"
+  rest = rest.trim();
+
+  var proto = protocolPattern.exec(rest);
+  if (proto) {
+    proto = proto[0];
+    var lowerProto = proto.toLowerCase();
+    this.protocol = lowerProto;
+    rest = rest.substr(proto.length);
+  }
+
+  // figure out if it's got a host
+  // user@server is *always* interpreted as a hostname, and url
+  // resolution will treat //foo/bar as host=foo,path=bar because that's
+  // how the browser resolves relative URLs.
+  if (slashesDenoteHost || proto || rest.match(/^\/\/[^@\/]+@[^@\/]+/)) {
+    var slashes = rest.substr(0, 2) === '//';
+    if (slashes && !(proto && hostlessProtocol[proto])) {
+      rest = rest.substr(2);
+      this.slashes = true;
+    }
+  }
+
+  if (!hostlessProtocol[proto] &&
+      (slashes || (proto && !slashedProtocol[proto]))) {
+
+    // there's a hostname.
+    // the first instance of /, ?, ;, or # ends the host.
+    //
+    // If there is an @ in the hostname, then non-host chars *are* allowed
+    // to the left of the last @ sign, unless some host-ending character
+    // comes *before* the @-sign.
+    // URLs are obnoxious.
+    //
+    // ex:
+    // http://a@b@c/ => user:a@b host:c
+    // http://a@b?@c => user:a host:c path:/?@c
+
+    // v0.12 TODO(isaacs): This is not quite how Chrome does things.
+    // Review our test case against browsers more comprehensively.
+
+    // find the first instance of any hostEndingChars
+    var hostEnd = -1;
+    for (var i = 0; i < hostEndingChars.length; i++) {
+      var hec = rest.indexOf(hostEndingChars[i]);
+      if (hec !== -1 && (hostEnd === -1 || hec < hostEnd))
+        hostEnd = hec;
+    }
+
+    // at this point, either we have an explicit point where the
+    // auth portion cannot go past, or the last @ char is the decider.
+    var auth, atSign;
+    if (hostEnd === -1) {
+      // atSign can be anywhere.
+      atSign = rest.lastIndexOf('@');
+    } else {
+      // atSign must be in auth portion.
+      // http://a@b/c@d => host:b auth:a path:/c@d
+      atSign = rest.lastIndexOf('@', hostEnd);
+    }
+
+    // Now we have a portion which is definitely the auth.
+    // Pull that off.
+    if (atSign !== -1) {
+      auth = rest.slice(0, atSign);
+      rest = rest.slice(atSign + 1);
+      this.auth = decodeURIComponent(auth);
+    }
+
+    // the host is the remaining to the left of the first non-host char
+    hostEnd = -1;
+    for (var i = 0; i < nonHostChars.length; i++) {
+      var hec = rest.indexOf(nonHostChars[i]);
+      if (hec !== -1 && (hostEnd === -1 || hec < hostEnd))
+        hostEnd = hec;
+    }
+    // if we still have not hit it, then the entire thing is a host.
+    if (hostEnd === -1)
+      hostEnd = rest.length;
+
+    this.host = rest.slice(0, hostEnd);
+    rest = rest.slice(hostEnd);
+
+    // pull out port.
+    this.parseHost();
+
+    // we've indicated that there is a hostname,
+    // so even if it's empty, it has to be present.
+    this.hostname = this.hostname || '';
+
+    // if hostname begins with [ and ends with ]
+    // assume that it's an IPv6 address.
+    var ipv6Hostname = this.hostname[0] === '[' &&
+        this.hostname[this.hostname.length - 1] === ']';
+
+    // validate a little.
+    if (!ipv6Hostname) {
+      var hostparts = this.hostname.split(/\./);
+      for (var i = 0, l = hostparts.length; i < l; i++) {
+        var part = hostparts[i];
+        if (!part) continue;
+        if (!part.match(hostnamePartPattern)) {
+          var newpart = '';
+          for (var j = 0, k = part.length; j < k; j++) {
+            if (part.charCodeAt(j) > 127) {
+              // we replace non-ASCII char with a temporary placeholder
+              // we need this to make sure size of hostname is not
+              // broken by replacing non-ASCII by nothing
+              newpart += 'x';
+            } else {
+              newpart += part[j];
+            }
+          }
+          // we test again with ASCII char only
+          if (!newpart.match(hostnamePartPattern)) {
+            var validParts = hostparts.slice(0, i);
+            var notHost = hostparts.slice(i + 1);
+            var bit = part.match(hostnamePartStart);
+            if (bit) {
+              validParts.push(bit[1]);
+              notHost.unshift(bit[2]);
+            }
+            if (notHost.length) {
+              rest = '/' + notHost.join('.') + rest;
+            }
+            this.hostname = validParts.join('.');
+            break;
+          }
+        }
+      }
+    }
+
+    if (this.hostname.length > hostnameMaxLen) {
+      this.hostname = '';
+    } else {
+      // hostnames are always lower case.
+      this.hostname = this.hostname.toLowerCase();
+    }
+
+    if (!ipv6Hostname) {
+      // IDNA Support: Returns a puny coded representation of "domain".
+      // It only converts the part of the domain name that
+      // has non ASCII characters. I.e. it dosent matter if
+      // you call it with a domain that already is in ASCII.
+      var domainArray = this.hostname.split('.');
+      var newOut = [];
+      for (var i = 0; i < domainArray.length; ++i) {
+        var s = domainArray[i];
+        newOut.push(s.match(/[^A-Za-z0-9_-]/) ?
+            'xn--' + punycode.encode(s) : s);
+      }
+      this.hostname = newOut.join('.');
+    }
+
+    var p = this.port ? ':' + this.port : '';
+    var h = this.hostname || '';
+    this.host = h + p;
+    this.href += this.host;
+
+    // strip [ and ] from the hostname
+    // the host field still retains them, though
+    if (ipv6Hostname) {
+      this.hostname = this.hostname.substr(1, this.hostname.length - 2);
+      if (rest[0] !== '/') {
+        rest = '/' + rest;
+      }
+    }
+  }
+
+  // now rest is set to the post-host stuff.
+  // chop off any delim chars.
+  if (!unsafeProtocol[lowerProto]) {
+
+    // First, make 100% sure that any "autoEscape" chars get
+    // escaped, even if encodeURIComponent doesn't think they
+    // need to be.
+    for (var i = 0, l = autoEscape.length; i < l; i++) {
+      var ae = autoEscape[i];
+      var esc = encodeURIComponent(ae);
+      if (esc === ae) {
+        esc = escape(ae);
+      }
+      rest = rest.split(ae).join(esc);
+    }
+  }
+
+
+  // chop off from the tail first.
+  var hash = rest.indexOf('#');
+  if (hash !== -1) {
+    // got a fragment string.
+    this.hash = rest.substr(hash);
+    rest = rest.slice(0, hash);
+  }
+  var qm = rest.indexOf('?');
+  if (qm !== -1) {
+    this.search = rest.substr(qm);
+    this.query = rest.substr(qm + 1);
+    if (parseQueryString) {
+      this.query = querystring.parse(this.query);
+    }
+    rest = rest.slice(0, qm);
+  } else if (parseQueryString) {
+    // no query string, but parseQueryString still requested
+    this.search = '';
+    this.query = {};
+  }
+  if (rest) this.pathname = rest;
+  if (slashedProtocol[lowerProto] &&
+      this.hostname && !this.pathname) {
+    this.pathname = '/';
+  }
+
+  //to support http.request
+  if (this.pathname || this.search) {
+    var p = this.pathname || '';
+    var s = this.search || '';
+    this.path = p + s;
+  }
+
+  // finally, reconstruct the href based on what has been validated.
+  this.href = this.format();
+  return this;
+};
+
+// format a parsed object into a url string
+function urlFormat(obj) {
+  // ensure it's an object, and not a string url.
+  // If it's an obj, this is a no-op.
+  // this way, you can call url_format() on strings
+  // to clean up potentially wonky urls.
+  if (isString(obj)) obj = urlParse(obj);
+  if (!(obj instanceof Url)) return Url.prototype.format.call(obj);
+  return obj.format();
+}
+
+Url.prototype.format = function() {
+  var auth = this.auth || '';
+  if (auth) {
+    auth = encodeURIComponent(auth);
+    auth = auth.replace(/%3A/i, ':');
+    auth += '@';
+  }
+
+  var protocol = this.protocol || '',
+      pathname = this.pathname || '',
+      hash = this.hash || '',
+      host = false,
+      query = '';
+
+  if (this.host) {
+    host = auth + this.host;
+  } else if (this.hostname) {
+    host = auth + (this.hostname.indexOf(':') === -1 ?
+        this.hostname :
+        '[' + this.hostname + ']');
+    if (this.port) {
+      host += ':' + this.port;
+    }
+  }
+
+  if (this.query &&
+      isObject(this.query) &&
+      Object.keys(this.query).length) {
+    query = querystring.stringify(this.query);
+  }
+
+  var search = this.search || (query && ('?' + query)) || '';
+
+  if (protocol && protocol.substr(-1) !== ':') protocol += ':';
+
+  // only the slashedProtocols get the //.  Not mailto:, xmpp:, etc.
+  // unless they had them to begin with.
+  if (this.slashes ||
+      (!protocol || slashedProtocol[protocol]) && host !== false) {
+    host = '//' + (host || '');
+    if (pathname && pathname.charAt(0) !== '/') pathname = '/' + pathname;
+  } else if (!host) {
+    host = '';
+  }
+
+  if (hash && hash.charAt(0) !== '#') hash = '#' + hash;
+  if (search && search.charAt(0) !== '?') search = '?' + search;
+
+  pathname = pathname.replace(/[?#]/g, function(match) {
+    return encodeURIComponent(match);
+  });
+  search = search.replace('#', '%23');
+
+  return protocol + host + pathname + search + hash;
+};
+
+function urlResolve(source, relative) {
+  return urlParse(source, false, true).resolve(relative);
+}
+
+Url.prototype.resolve = function(relative) {
+  return this.resolveObject(urlParse(relative, false, true)).format();
+};
+
+function urlResolveObject(source, relative) {
+  if (!source) return relative;
+  return urlParse(source, false, true).resolveObject(relative);
+}
+
+Url.prototype.resolveObject = function(relative) {
+  if (isString(relative)) {
+    var rel = new Url();
+    rel.parse(relative, false, true);
+    relative = rel;
+  }
+
+  var result = new Url();
+  Object.keys(this).forEach(function(k) {
+    result[k] = this[k];
+  }, this);
+
+  // hash is always overridden, no matter what.
+  // even href="" will remove it.
+  result.hash = relative.hash;
+
+  // if the relative url is empty, then there's nothing left to do here.
+  if (relative.href === '') {
+    result.href = result.format();
+    return result;
+  }
+
+  // hrefs like //foo/bar always cut to the protocol.
+  if (relative.slashes && !relative.protocol) {
+    // take everything except the protocol from relative
+    Object.keys(relative).forEach(function(k) {
+      if (k !== 'protocol')
+        result[k] = relative[k];
+    });
+
+    //urlParse appends trailing / to urls like http://www.example.com
+    if (slashedProtocol[result.protocol] &&
+        result.hostname && !result.pathname) {
+      result.path = result.pathname = '/';
+    }
+
+    result.href = result.format();
+    return result;
+  }
+
+  if (relative.protocol && relative.protocol !== result.protocol) {
+    // if it's a known url protocol, then changing
+    // the protocol does weird things
+    // first, if it's not file:, then we MUST have a host,
+    // and if there was a path
+    // to begin with, then we MUST have a path.
+    // if it is file:, then the host is dropped,
+    // because that's known to be hostless.
+    // anything else is assumed to be absolute.
+    if (!slashedProtocol[relative.protocol]) {
+      Object.keys(relative).forEach(function(k) {
+        result[k] = relative[k];
+      });
+      result.href = result.format();
+      return result;
+    }
+
+    result.protocol = relative.protocol;
+    if (!relative.host && !hostlessProtocol[relative.protocol]) {
+      var relPath = (relative.pathname || '').split('/');
+      while (relPath.length && !(relative.host = relPath.shift()));
+      if (!relative.host) relative.host = '';
+      if (!relative.hostname) relative.hostname = '';
+      if (relPath[0] !== '') relPath.unshift('');
+      if (relPath.length < 2) relPath.unshift('');
+      result.pathname = relPath.join('/');
+    } else {
+      result.pathname = relative.pathname;
+    }
+    result.search = relative.search;
+    result.query = relative.query;
+    result.host = relative.host || '';
+    result.auth = relative.auth;
+    result.hostname = relative.hostname || relative.host;
+    result.port = relative.port;
+    // to support http.request
+    if (result.pathname || result.search) {
+      var p = result.pathname || '';
+      var s = result.search || '';
+      result.path = p + s;
+    }
+    result.slashes = result.slashes || relative.slashes;
+    result.href = result.format();
+    return result;
+  }
+
+  var isSourceAbs = (result.pathname && result.pathname.charAt(0) === '/'),
+      isRelAbs = (
+          relative.host ||
+          relative.pathname && relative.pathname.charAt(0) === '/'
+      ),
+      mustEndAbs = (isRelAbs || isSourceAbs ||
+                    (result.host && relative.pathname)),
+      removeAllDots = mustEndAbs,
+      srcPath = result.pathname && result.pathname.split('/') || [],
+      relPath = relative.pathname && relative.pathname.split('/') || [],
+      psychotic = result.protocol && !slashedProtocol[result.protocol];
+
+  // if the url is a non-slashed url, then relative
+  // links like ../.. should be able
+  // to crawl up to the hostname, as well.  This is strange.
+  // result.protocol has already been set by now.
+  // Later on, put the first path part into the host field.
+  if (psychotic) {
+    result.hostname = '';
+    result.port = null;
+    if (result.host) {
+      if (srcPath[0] === '') srcPath[0] = result.host;
+      else srcPath.unshift(result.host);
+    }
+    result.host = '';
+    if (relative.protocol) {
+      relative.hostname = null;
+      relative.port = null;
+      if (relative.host) {
+        if (relPath[0] === '') relPath[0] = relative.host;
+        else relPath.unshift(relative.host);
+      }
+      relative.host = null;
+    }
+    mustEndAbs = mustEndAbs && (relPath[0] === '' || srcPath[0] === '');
+  }
+
+  if (isRelAbs) {
+    // it's absolute.
+    result.host = (relative.host || relative.host === '') ?
+                  relative.host : result.host;
+    result.hostname = (relative.hostname || relative.hostname === '') ?
+                      relative.hostname : result.hostname;
+    result.search = relative.search;
+    result.query = relative.query;
+    srcPath = relPath;
+    // fall through to the dot-handling below.
+  } else if (relPath.length) {
+    // it's relative
+    // throw away the existing file, and take the new path instead.
+    if (!srcPath) srcPath = [];
+    srcPath.pop();
+    srcPath = srcPath.concat(relPath);
+    result.search = relative.search;
+    result.query = relative.query;
+  } else if (!isNullOrUndefined(relative.search)) {
+    // just pull out the search.
+    // like href='?foo'.
+    // Put this after the other two cases because it simplifies the booleans
+    if (psychotic) {
+      result.hostname = result.host = srcPath.shift();
+      //occationaly the auth can get stuck only in host
+      //this especialy happens in cases like
+      //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
+      var authInHost = result.host && result.host.indexOf('@') > 0 ?
+                       result.host.split('@') : false;
+      if (authInHost) {
+        result.auth = authInHost.shift();
+        result.host = result.hostname = authInHost.shift();
+      }
+    }
+    result.search = relative.search;
+    result.query = relative.query;
+    //to support http.request
+    if (!isNull(result.pathname) || !isNull(result.search)) {
+      result.path = (result.pathname ? result.pathname : '') +
+                    (result.search ? result.search : '');
+    }
+    result.href = result.format();
+    return result;
+  }
+
+  if (!srcPath.length) {
+    // no path at all.  easy.
+    // we've already handled the other stuff above.
+    result.pathname = null;
+    //to support http.request
+    if (result.search) {
+      result.path = '/' + result.search;
+    } else {
+      result.path = null;
+    }
+    result.href = result.format();
+    return result;
+  }
+
+  // if a url ENDs in . or .., then it must get a trailing slash.
+  // however, if it ends in anything else non-slashy,
+  // then it must NOT get a trailing slash.
+  var last = srcPath.slice(-1)[0];
+  var hasTrailingSlash = (
+      (result.host || relative.host) && (last === '.' || last === '..') ||
+      last === '');
+
+  // strip single dots, resolve double dots to parent dir
+  // if the path tries to go above the root, `up` ends up > 0
+  var up = 0;
+  for (var i = srcPath.length; i >= 0; i--) {
+    last = srcPath[i];
+    if (last == '.') {
+      srcPath.splice(i, 1);
+    } else if (last === '..') {
+      srcPath.splice(i, 1);
+      up++;
+    } else if (up) {
+      srcPath.splice(i, 1);
+      up--;
+    }
+  }
+
+  // if the path is allowed to go above the root, restore leading ..s
+  if (!mustEndAbs && !removeAllDots) {
+    for (; up--; up) {
+      srcPath.unshift('..');
+    }
+  }
+
+  if (mustEndAbs && srcPath[0] !== '' &&
+      (!srcPath[0] || srcPath[0].charAt(0) !== '/')) {
+    srcPath.unshift('');
+  }
+
+  if (hasTrailingSlash && (srcPath.join('/').substr(-1) !== '/')) {
+    srcPath.push('');
+  }
+
+  var isAbsolute = srcPath[0] === '' ||
+      (srcPath[0] && srcPath[0].charAt(0) === '/');
+
+  // put the host back
+  if (psychotic) {
+    result.hostname = result.host = isAbsolute ? '' :
+                                    srcPath.length ? srcPath.shift() : '';
+    //occationaly the auth can get stuck only in host
+    //this especialy happens in cases like
+    //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
+    var authInHost = result.host && result.host.indexOf('@') > 0 ?
+                     result.host.split('@') : false;
+    if (authInHost) {
+      result.auth = authInHost.shift();
+      result.host = result.hostname = authInHost.shift();
+    }
+  }
+
+  mustEndAbs = mustEndAbs || (result.host && srcPath.length);
+
+  if (mustEndAbs && !isAbsolute) {
+    srcPath.unshift('');
+  }
+
+  if (!srcPath.length) {
+    result.pathname = null;
+    result.path = null;
+  } else {
+    result.pathname = srcPath.join('/');
+  }
+
+  //to support request.http
+  if (!isNull(result.pathname) || !isNull(result.search)) {
+    result.path = (result.pathname ? result.pathname : '') +
+                  (result.search ? result.search : '');
+  }
+  result.auth = relative.auth || result.auth;
+  result.slashes = result.slashes || relative.slashes;
+  result.href = result.format();
+  return result;
+};
+
+Url.prototype.parseHost = function() {
+  var host = this.host;
+  var port = portPattern.exec(host);
+  if (port) {
+    port = port[0];
+    if (port !== ':') {
+      this.port = port.substr(1);
+    }
+    host = host.substr(0, host.length - port.length);
+  }
+  if (host) this.hostname = host;
+};
+
+function isString(arg) {
+  return typeof arg === "string";
+}
+
+function isObject(arg) {
+  return typeof arg === 'object' && arg !== null;
+}
+
+function isNull(arg) {
+  return arg === null;
+}
+function isNullOrUndefined(arg) {
+  return  arg == null;
+}
+
+},{"punycode":40,"querystring":90}],94:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16637,7 +22334,7 @@ module.exports = (function () {
   return Controller;
 }());
 
-},{}],9:[function(require,module,exports){
+},{}],95:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16647,7 +22344,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],10:[function(require,module,exports){
+},{}],96:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16678,7 +22375,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],11:[function(require,module,exports){
+},{}],97:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16701,7 +22398,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./identity":9}],12:[function(require,module,exports){
+},{"./identity":95}],98:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -16723,6 +22420,7 @@ module.exports = (function () {
   var MatchShowView = require('../views/matches/show_view');
   var MatchesListView = require('../views/matches/list_view');
   var ScorerView = require('../views/matches/scorer_view');
+  var ImporterView = require('../views/importer_view');
   var BaseModel = require('../persistence/base_model');
 
   var SEED_TEAMS = [
@@ -16905,11 +22603,24 @@ module.exports = (function () {
     };
   }
 
+  function wireImporter(app, controller, BackboneDep, flash) {
+    controller.importer = function () {
+      var view = new ImporterView();
+      view.on('importer:done', function (summary) {
+        if (flash) {
+          flash('Importado ' + summary.championship.name + '.', 'success');
+        }
+      });
+      app.getRegion('mainRegion').show(view);
+    };
+  }
+
   function wireAll(app, controller, BackboneDep, flash) {
     wireHome(app, controller);
     wireTeamRoutes(app, controller, BackboneDep, flash);
     wireChampionshipRoutes(app, controller, BackboneDep, flash);
     wireMatchRoutes(app, controller, flash);
+    wireImporter(app, controller, BackboneDep, flash);
   }
 
   return {
@@ -16920,7 +22631,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":15,"../collections/matches":17,"../collections/teams":18,"../models/championship":22,"../models/match":23,"../models/team":29,"../persistence/base_model":31,"../views/championships/form_view":46,"../views/championships/list_view":47,"../views/championships/show_view":49,"../views/home_view":55,"../views/matches/list_view":59,"../views/matches/scorer_view":62,"../views/matches/show_view":63,"../views/stats/head_to_head_view":68,"../views/teams/form_view":72,"../views/teams/list_view":74,"../views/teams/profile_view":75,"./router":10}],13:[function(require,module,exports){
+},{"../collections/championships":101,"../collections/matches":103,"../collections/teams":104,"../models/championship":113,"../models/match":114,"../models/team":120,"../persistence/base_model":122,"../views/championships/form_view":137,"../views/championships/list_view":138,"../views/championships/show_view":140,"../views/home_view":146,"../views/importer_view":147,"../views/matches/list_view":151,"../views/matches/scorer_view":154,"../views/matches/show_view":155,"../views/stats/head_to_head_view":160,"../views/teams/form_view":164,"../views/teams/list_view":166,"../views/teams/profile_view":167,"./router":96}],99:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17015,7 +22726,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./tiebreakers":14}],14:[function(require,module,exports){
+},{"./tiebreakers":100}],100:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17048,7 +22759,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],15:[function(require,module,exports){
+},{}],101:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17075,7 +22786,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/championship":22,"../persistence/base_collection":30}],16:[function(require,module,exports){
+},{"../models/championship":113,"../persistence/base_collection":121}],102:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17109,7 +22820,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match_event":24,"../persistence/base_collection":30}],17:[function(require,module,exports){
+},{"../models/match_event":115,"../persistence/base_collection":121}],103:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17170,7 +22881,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match":23,"../persistence/base_collection":30}],18:[function(require,module,exports){
+},{"../models/match":114,"../persistence/base_collection":121}],104:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17183,7 +22894,489 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/team":29,"../persistence/base_collection":30}],19:[function(require,module,exports){
+},{"../models/team":120,"../persistence/base_collection":121}],105:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // Brasileirão Série A 2014 — 20 clubes em pontos corridos com ida e volta.
+  // O campeão foi o Cruzeiro com 80 pontos. Aqui usamos um subconjunto das
+  // partidas mais marcantes do campeonato para popular a tela rapidamente.
+
+  return {
+    championship: {
+      id:      'brasileirao-2014',
+      name:    'Brasileirão Série A 2014',
+      season:  2014,
+      country: 'BR',
+      format:  'double-round-robin',
+      tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
+    },
+    teams: [
+      { id: 'CRU', name: 'Cruzeiro',       'short': 'CRU', city: 'Belo Horizonte',
+        stadium: 'Mineirão' },
+      { id: 'SAO', name: 'São Paulo',      'short': 'SAO', city: 'São Paulo',
+        stadium: 'Morumbi' },
+      { id: 'INT', name: 'Internacional',  'short': 'INT', city: 'Porto Alegre',
+        stadium: 'Beira-Rio' },
+      { id: 'COR', name: 'Corinthians',    'short': 'COR', city: 'São Paulo',
+        stadium: 'Arena Corinthians' },
+      { id: 'CAM', name: 'Atlético-MG',    'short': 'CAM', city: 'Belo Horizonte',
+        stadium: 'Independência' },
+      { id: 'GRE', name: 'Grêmio',         'short': 'GRE', city: 'Porto Alegre',
+        stadium: 'Arena do Grêmio' },
+      { id: 'FLU', name: 'Fluminense',     'short': 'FLU', city: 'Rio de Janeiro',
+        stadium: 'Maracanã' },
+      { id: 'VAS', name: 'Vasco da Gama',  'short': 'VAS', city: 'Rio de Janeiro',
+        stadium: 'São Januário' },
+      { id: 'BOT', name: 'Botafogo',       'short': 'BOT', city: 'Rio de Janeiro',
+        stadium: 'Engenhão' },
+      { id: 'GOI', name: 'Goiás',          'short': 'GOI', city: 'Goiânia',
+        stadium: 'Serra Dourada' },
+      { id: 'CFC', name: 'Coritiba',       'short': 'CFC', city: 'Curitiba',
+        stadium: 'Couto Pereira' },
+      { id: 'PAL', name: 'Palmeiras',      'short': 'PAL', city: 'São Paulo',
+        stadium: 'Allianz Parque' },
+      { id: 'SPT', name: 'Sport',          'short': 'SPT', city: 'Recife',
+        stadium: 'Ilha do Retiro' },
+      { id: 'CAP', name: 'Atlético-PR',    'short': 'CAP', city: 'Curitiba',
+        stadium: 'Arena da Baixada' },
+      { id: 'BAH', name: 'Bahia',          'short': 'BAH', city: 'Salvador',
+        stadium: 'Arena Fonte Nova' },
+      { id: 'FIG', name: 'Figueirense',    'short': 'FIG', city: 'Florianópolis',
+        stadium: 'Orlando Scarpelli' },
+      { id: 'CHA', name: 'Chapecoense',    'short': 'CHA', city: 'Chapecó',
+        stadium: 'Arena Condá' },
+      { id: 'SAN', name: 'Santos',         'short': 'SAN', city: 'Santos',
+        stadium: 'Vila Belmiro' },
+      { id: 'FLA', name: 'Flamengo',       'short': 'FLA', city: 'Rio de Janeiro',
+        stadium: 'Maracanã' },
+      { id: 'CRI', name: 'Criciúma',       'short': 'CRI', city: 'Criciúma',
+        stadium: 'Heriberto Hülse' }
+    ],
+    matches: matchesBuild()
+  };
+
+  function r(home, hs, as, away, meta) {
+    return {
+      home: home, away: away,
+      homeScore: hs, awayScore: as,
+      status: 'finished',
+      kickoff: meta[1],
+      round: meta[0],
+      group: null
+    };
+  }
+  function rd(round, date) { return [round, date]; }
+
+  function matchesBuild() {
+    return [
+      // Última rodada (38) — Cruzeiro já campeão, decisões de zona
+      r('CRI', 0, 2, 'CRU', rd(38, '2014-12-07T19:00:00Z')),
+      r('BAH', 1, 2, 'COR', rd(38, '2014-12-07T19:00:00Z')),
+      r('PAL', 4, 0, 'SPT', rd(38, '2014-12-07T19:00:00Z')),
+      r('SAO', 0, 4, 'SAN', rd(38, '2014-12-07T19:00:00Z')),
+      r('FLU', 5, 0, 'CAP', rd(38, '2014-12-07T19:00:00Z')),
+      r('INT', 2, 2, 'CFC', rd(38, '2014-12-07T19:00:00Z')),
+      r('GRE', 3, 4, 'VAS', rd(38, '2014-12-07T19:00:00Z')),
+      r('CHA', 4, 1, 'CAM', rd(38, '2014-12-07T19:00:00Z')),
+      r('FIG', 1, 0, 'GOI', rd(38, '2014-12-07T19:00:00Z')),
+      r('BOT', 0, 1, 'FLA', rd(38, '2014-12-07T19:00:00Z')),
+      // Recortes de outros confrontos marcantes do ano
+      r('COR', 1, 1, 'SAO', rd(12, '2014-08-10T16:00:00Z')),
+      r('FLA', 1, 2, 'FLU', rd(15, '2014-09-07T16:00:00Z')),
+      r('GRE', 2, 1, 'INT', rd(18, '2014-09-28T16:00:00Z')),
+      r('CAM', 1, 0, 'CRU', rd(22, '2014-10-19T16:00:00Z')),
+      r('SAO', 2, 1, 'PAL', rd(27, '2014-11-09T17:00:00Z'))
+    ];
+  }
+}());
+
+},{}],106:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // Copa do Mundo de 2014 — 32 seleções em 8 grupos de 4.
+  // Datas no formato ISO em UTC; os jogos reais começavam normalmente às
+  // 13:00, 16:00 ou 17:00 horário de Brasília.
+
+  function m(home, hs, as, away, meta) {
+    return {
+      home: home, away: away,
+      homeScore: hs, awayScore: as,
+      status: 'finished',
+      kickoff: meta[2],
+      round: meta[0],
+      group: meta[1]
+    };
+  }
+  function ctx(round, group, date) {
+    return [round, group, date];
+  }
+  function withEvents(match, events) {
+    match.events = events;
+    return match;
+  }
+
+  var GROUP_MATCHES = [
+    // Grupo A
+    m('BRA', 3, 1, 'CRO', ctx(1, 'Grupo A', '2014-06-12T20:00:00Z')),
+    m('MEX', 1, 0, 'CMR', ctx(1, 'Grupo A', '2014-06-13T16:00:00Z')),
+    m('BRA', 0, 0, 'MEX', ctx(2, 'Grupo A', '2014-06-17T19:00:00Z')),
+    m('CMR', 0, 4, 'CRO', ctx(2, 'Grupo A', '2014-06-18T22:00:00Z')),
+    m('CMR', 1, 4, 'BRA', ctx(3, 'Grupo A', '2014-06-23T20:00:00Z')),
+    m('CRO', 1, 3, 'MEX', ctx(3, 'Grupo A', '2014-06-23T20:00:00Z')),
+    // Grupo B
+    m('ESP', 1, 5, 'NED', ctx(1, 'Grupo B', '2014-06-13T19:00:00Z')),
+    m('CHI', 3, 1, 'AUS', ctx(1, 'Grupo B', '2014-06-13T22:00:00Z')),
+    m('AUS', 2, 3, 'NED', ctx(2, 'Grupo B', '2014-06-18T16:00:00Z')),
+    m('ESP', 0, 2, 'CHI', ctx(2, 'Grupo B', '2014-06-18T19:00:00Z')),
+    m('AUS', 0, 3, 'ESP', ctx(3, 'Grupo B', '2014-06-23T16:00:00Z')),
+    m('NED', 2, 0, 'CHI', ctx(3, 'Grupo B', '2014-06-23T16:00:00Z')),
+    // Grupo C
+    m('COL', 3, 0, 'GRE', ctx(1, 'Grupo C', '2014-06-14T16:00:00Z')),
+    m('CIV', 2, 1, 'JPN', ctx(1, 'Grupo C', '2014-06-14T22:00:00Z')),
+    m('COL', 2, 1, 'CIV', ctx(2, 'Grupo C', '2014-06-19T16:00:00Z')),
+    m('JPN', 0, 0, 'GRE', ctx(2, 'Grupo C', '2014-06-19T22:00:00Z')),
+    m('COL', 4, 1, 'JPN', ctx(3, 'Grupo C', '2014-06-24T20:00:00Z')),
+    m('GRE', 2, 1, 'CIV', ctx(3, 'Grupo C', '2014-06-24T20:00:00Z')),
+    // Grupo D
+    m('URU', 1, 3, 'CRC', ctx(1, 'Grupo D', '2014-06-14T19:00:00Z')),
+    m('ENG', 1, 2, 'ITA', ctx(1, 'Grupo D', '2014-06-14T22:00:00Z')),
+    m('URU', 2, 1, 'ENG', ctx(2, 'Grupo D', '2014-06-19T19:00:00Z')),
+    m('ITA', 0, 1, 'CRC', ctx(2, 'Grupo D', '2014-06-20T16:00:00Z')),
+    m('ITA', 0, 1, 'URU', ctx(3, 'Grupo D', '2014-06-24T16:00:00Z')),
+    m('CRC', 0, 0, 'ENG', ctx(3, 'Grupo D', '2014-06-24T16:00:00Z')),
+    // Grupo E
+    m('SUI', 2, 1, 'ECU', ctx(1, 'Grupo E', '2014-06-15T16:00:00Z')),
+    m('FRA', 3, 0, 'HON', ctx(1, 'Grupo E', '2014-06-15T19:00:00Z')),
+    m('SUI', 2, 5, 'FRA', ctx(2, 'Grupo E', '2014-06-20T19:00:00Z')),
+    m('HON', 1, 2, 'ECU', ctx(2, 'Grupo E', '2014-06-20T22:00:00Z')),
+    m('HON', 0, 3, 'SUI', ctx(3, 'Grupo E', '2014-06-25T20:00:00Z')),
+    m('ECU', 0, 0, 'FRA', ctx(3, 'Grupo E', '2014-06-25T20:00:00Z')),
+    // Grupo F
+    m('ARG', 2, 1, 'BIH', ctx(1, 'Grupo F', '2014-06-15T22:00:00Z')),
+    m('IRN', 0, 0, 'NGA', ctx(1, 'Grupo F', '2014-06-16T19:00:00Z')),
+    m('ARG', 1, 0, 'IRN', ctx(2, 'Grupo F', '2014-06-21T16:00:00Z')),
+    m('NGA', 1, 0, 'BIH', ctx(2, 'Grupo F', '2014-06-21T22:00:00Z')),
+    m('NGA', 2, 3, 'ARG', ctx(3, 'Grupo F', '2014-06-25T16:00:00Z')),
+    m('BIH', 3, 1, 'IRN', ctx(3, 'Grupo F', '2014-06-25T16:00:00Z')),
+    // Grupo G
+    m('GER', 4, 0, 'POR', ctx(1, 'Grupo G', '2014-06-16T16:00:00Z')),
+    m('GHA', 1, 2, 'USA', ctx(1, 'Grupo G', '2014-06-16T22:00:00Z')),
+    m('GER', 2, 2, 'GHA', ctx(2, 'Grupo G', '2014-06-21T19:00:00Z')),
+    m('USA', 2, 2, 'POR', ctx(2, 'Grupo G', '2014-06-22T22:00:00Z')),
+    m('USA', 0, 1, 'GER', ctx(3, 'Grupo G', '2014-06-26T16:00:00Z')),
+    m('POR', 2, 1, 'GHA', ctx(3, 'Grupo G', '2014-06-26T16:00:00Z')),
+    // Grupo H
+    m('BEL', 2, 1, 'ALG', ctx(1, 'Grupo H', '2014-06-17T16:00:00Z')),
+    m('RUS', 1, 1, 'KOR', ctx(1, 'Grupo H', '2014-06-17T22:00:00Z')),
+    m('BEL', 1, 0, 'RUS', ctx(2, 'Grupo H', '2014-06-22T16:00:00Z')),
+    m('KOR', 2, 4, 'ALG', ctx(2, 'Grupo H', '2014-06-22T19:00:00Z')),
+    m('KOR', 0, 1, 'BEL', ctx(3, 'Grupo H', '2014-06-26T20:00:00Z')),
+    m('ALG', 1, 1, 'RUS', ctx(3, 'Grupo H', '2014-06-26T20:00:00Z'))
+  ];
+
+  var KNOCKOUT_MATCHES = [
+    // Oitavas
+    m('BRA', 1, 1, 'CHI', ctx(4, 'Oitavas',   '2014-06-28T17:00:00Z')),
+    m('COL', 2, 0, 'URU', ctx(4, 'Oitavas',   '2014-06-28T21:00:00Z')),
+    m('NED', 2, 1, 'MEX', ctx(4, 'Oitavas',   '2014-06-29T17:00:00Z')),
+    m('CRC', 1, 1, 'GRE', ctx(4, 'Oitavas',   '2014-06-29T21:00:00Z')),
+    m('FRA', 2, 0, 'NGA', ctx(4, 'Oitavas',   '2014-06-30T17:00:00Z')),
+    m('GER', 2, 1, 'ALG', ctx(4, 'Oitavas',   '2014-06-30T21:00:00Z')),
+    m('ARG', 1, 0, 'SUI', ctx(4, 'Oitavas',   '2014-07-01T17:00:00Z')),
+    m('BEL', 2, 1, 'USA', ctx(4, 'Oitavas',   '2014-07-01T21:00:00Z')),
+    // Quartas
+    m('FRA', 0, 1, 'GER', ctx(5, 'Quartas',   '2014-07-04T17:00:00Z')),
+    m('BRA', 2, 1, 'COL', ctx(5, 'Quartas',   '2014-07-04T21:00:00Z')),
+    m('ARG', 1, 0, 'BEL', ctx(5, 'Quartas',   '2014-07-05T17:00:00Z')),
+    m('NED', 0, 0, 'CRC', ctx(5, 'Quartas',   '2014-07-05T21:00:00Z')),
+    // Semifinais
+    withEvents(
+      m('BRA', 1, 7, 'GER', ctx(6, 'Semifinais', '2014-07-08T21:00:00Z')),
+      [
+        { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
+        { type: 'goal', half: 1, minute: 11, player: 'Müller',   text: '0x1 Alemanha' },
+        { type: 'goal', half: 1, minute: 23, player: 'Klose',    text: '0x2 Alemanha' },
+        { type: 'goal', half: 1, minute: 24, player: 'Kroos',    text: '0x3 Alemanha' },
+        { type: 'goal', half: 1, minute: 26, player: 'Kroos',    text: '0x4 Alemanha' },
+        { type: 'goal', half: 1, minute: 29, player: 'Khedira',  text: '0x5 Alemanha' },
+        { type: 'half_time', half: 1, minute: 47, text: 'Intervalo' },
+        { type: 'goal', half: 2, minute: 24, player: 'Schürrle', text: '0x6 Alemanha' },
+        { type: 'goal', half: 2, minute: 34, player: 'Schürrle', text: '0x7 Alemanha' },
+        { type: 'goal', half: 2, minute: 45, player: 'Oscar',    text: '1x7 Brasil' },
+        { type: 'full_time', half: 2, minute: 47, text: 'Fim de jogo' }
+      ]
+    ),
+    m('NED', 0, 0, 'ARG', ctx(6, 'Semifinais', '2014-07-09T21:00:00Z')),
+    // Terceiro lugar
+    m('BRA', 0, 3, 'NED', ctx(7, 'Disputa de 3º', '2014-07-12T21:00:00Z')),
+    // Final
+    withEvents(
+      m('GER', 1, 0, 'ARG', ctx(7, 'Final',      '2014-07-13T19:00:00Z')),
+      [
+        { type: 'kickoff',   half: 1, minute:  0, text: 'Início da final' },
+        { type: 'half_time', half: 1, minute: 47, text: 'Intervalo' },
+        { type: 'goal',  half: 3, minute: 23, player: 'Götze',
+          text: 'Götze marca aos 113 — Alemanha campeã' },
+        { type: 'full_time', half: 4, minute: 30, text: 'Alemanha tetracampeã!' }
+      ]
+    )
+  ];
+
+  return {
+    championship: {
+      id:      'world-cup-2014',
+      name:    'Copa do Mundo FIFA 2014',
+      season:  2014,
+      country: 'BR',
+      format:  'groups-knockout',
+      tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
+    },
+    teams: [
+      // Grupo A
+      { id: 'BRA', name: 'Brasil',        'short': 'BRA' },
+      { id: 'CRO', name: 'Croácia',       'short': 'CRO' },
+      { id: 'MEX', name: 'México',        'short': 'MEX' },
+      { id: 'CMR', name: 'Camarões',      'short': 'CMR' },
+      // Grupo B
+      { id: 'ESP', name: 'Espanha',       'short': 'ESP' },
+      { id: 'NED', name: 'Holanda',       'short': 'NED' },
+      { id: 'CHI', name: 'Chile',         'short': 'CHI' },
+      { id: 'AUS', name: 'Austrália',     'short': 'AUS' },
+      // Grupo C
+      { id: 'COL', name: 'Colômbia',      'short': 'COL' },
+      { id: 'GRE', name: 'Grécia',        'short': 'GRE' },
+      { id: 'CIV', name: 'Costa do Marfim', 'short': 'CIV' },
+      { id: 'JPN', name: 'Japão',         'short': 'JPN' },
+      // Grupo D
+      { id: 'URU', name: 'Uruguai',       'short': 'URU' },
+      { id: 'CRC', name: 'Costa Rica',    'short': 'CRC' },
+      { id: 'ENG', name: 'Inglaterra',    'short': 'ENG' },
+      { id: 'ITA', name: 'Itália',        'short': 'ITA' },
+      // Grupo E
+      { id: 'SUI', name: 'Suíça',         'short': 'SUI' },
+      { id: 'ECU', name: 'Equador',       'short': 'ECU' },
+      { id: 'FRA', name: 'França',        'short': 'FRA' },
+      { id: 'HON', name: 'Honduras',      'short': 'HON' },
+      // Grupo F
+      { id: 'ARG', name: 'Argentina',     'short': 'ARG' },
+      { id: 'BIH', name: 'Bósnia',        'short': 'BIH' },
+      { id: 'IRN', name: 'Irã',           'short': 'IRN' },
+      { id: 'NGA', name: 'Nigéria',       'short': 'NGA' },
+      // Grupo G
+      { id: 'GER', name: 'Alemanha',      'short': 'GER' },
+      { id: 'POR', name: 'Portugal',      'short': 'POR' },
+      { id: 'GHA', name: 'Gana',          'short': 'GHA' },
+      { id: 'USA', name: 'Estados Unidos', 'short': 'USA' },
+      // Grupo H
+      { id: 'BEL', name: 'Bélgica',       'short': 'BEL' },
+      { id: 'ALG', name: 'Argélia',       'short': 'ALG' },
+      { id: 'RUS', name: 'Rússia',        'short': 'RUS' },
+      { id: 'KOR', name: 'Coreia do Sul', 'short': 'KOR' }
+    ],
+    matches: GROUP_MATCHES.concat(KNOCKOUT_MATCHES)
+  };
+}());
+
+},{}],107:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var BaseModel = require('../persistence/base_model');
+  var validator = require('./validator');
+
+  function importChampionship(storage, data) {
+    return storage.create('championships', data);
+  }
+
+  function importTeams(storage, teams) {
+    return teams.map(function (t) { return storage.create('teams', t); });
+  }
+
+  function matchAttrs(match, championshipId) {
+    return {
+      id:           match.id,
+      home:         match.home,
+      away:         match.away,
+      kickoff:      match.kickoff || null,
+      stadium:      match.stadium || '',
+      round:        match.round || null,
+      group:        match.group || null,
+      status:       match.status || 'scheduled',
+      homeScore:    match.homeScore || 0,
+      awayScore:    match.awayScore || 0,
+      championship: championshipId
+    };
+  }
+
+  function eventAttrs(ev, matchId) {
+    return {
+      match:  matchId,
+      type:   ev.type,
+      half:   ev.half || 1,
+      minute: ev.minute || 0,
+      player: ev.player || null,
+      text:   ev.text || ''
+    };
+  }
+
+  function importMatch(storage, championshipId, match) {
+    var saved = storage.create('matches', matchAttrs(match, championshipId));
+    (match.events || []).forEach(function (ev) {
+      storage.create('match_events', eventAttrs(ev, saved.id));
+    });
+    return saved;
+  }
+
+  function importFixture(fixture, options) {
+    var opts = options || {};
+    var storage = opts.storage || BaseModel.getStorage();
+    if (!storage) { throw new Error('storage não configurado'); }
+
+    var validation = opts.skipValidation ? { valid: true } : validator.validate(fixture);
+    if (!validation.valid) {
+      var err = new Error('Fixture inválido');
+      err.errors = validation.errors;
+      throw err;
+    }
+
+    var champ = importChampionship(storage, fixture.championship);
+    var teams = importTeams(storage, fixture.teams);
+    var matches = fixture.matches.map(function (m) {
+      return importMatch(storage, champ.id, m);
+    });
+
+    return {
+      championship: champ,
+      teamsCount: teams.length,
+      matchesCount: matches.length,
+      eventsCount: matches.reduce(function (acc, m, idx) {
+        var src = fixture.matches[idx];
+        return acc + ((src && src.events) ? src.events.length : 0);
+      }, 0)
+    };
+  }
+
+  return { importFixture: importFixture };
+}());
+
+},{"../persistence/base_model":122,"./validator":109}],108:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // JSON Schema (draft-04) para fixtures importáveis.
+
+  return {
+    '$schema': 'http://json-schema.org/draft-04/schema#',
+    title: 'championship-fixture',
+    type: 'object',
+    required: ['championship', 'teams', 'matches'],
+    properties: {
+      championship: {
+        type: 'object',
+        required: ['id', 'name', 'season', 'format'],
+        properties: {
+          id:          { type: 'string', minLength: 1 },
+          name:        { type: 'string', minLength: 1 },
+          season:      { type: 'integer', minimum: 1900, maximum: 2100 },
+          country:     { type: 'string' },
+          format: {
+            type: 'string',
+            'enum': ['league', 'double-round-robin', 'groups-knockout', 'knockout']
+          },
+          tiebreakers: { type: 'array', items: { type: 'string' } }
+        }
+      },
+      teams: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['id', 'name'],
+          properties: {
+            id:        { type: 'string', minLength: 1 },
+            name:      { type: 'string', minLength: 1 },
+            'short':   { type: 'string' },
+            city:      { type: 'string' },
+            stadium:   { type: 'string' },
+            foundedAt: { type: 'integer' },
+            colors:    { type: 'array', items: { type: 'string' } }
+          }
+        }
+      },
+      matches: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['home', 'away'],
+          properties: {
+            id:        { type: 'string' },
+            home:      { type: 'string', minLength: 1 },
+            away:      { type: 'string', minLength: 1 },
+            kickoff:   { type: 'string' },
+            stadium:   { type: 'string' },
+            round:     { type: 'integer' },
+            group:     { type: ['string', 'null'] },
+            status: {
+              type: 'string',
+              'enum': ['scheduled', 'live', 'half', 'finished', 'postponed']
+            },
+            homeScore: { type: 'integer', minimum: 0 },
+            awayScore: { type: 'integer', minimum: 0 },
+            events: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['type'],
+                properties: {
+                  type: {
+                    type: 'string',
+                    'enum': [
+                      'kickoff', 'goal', 'own_goal', 'yellow', 'red',
+                      'sub', 'var', 'comment', 'half_time', 'full_time'
+                    ]
+                  },
+                  half:   { type: 'integer', minimum: 1, maximum: 4 },
+                  minute: { type: 'integer', minimum: 0, maximum: 120 },
+                  player: { type: ['string', 'null'] },
+                  text:   { type: 'string' }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+}());
+
+},{}],109:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Ajv = require('ajv');
+  var schema = require('./schema');
+
+  var ajv = new Ajv({ allErrors: true });
+  var compiled = ajv.compile(schema);
+
+  function validate(fixture) {
+    var ok = compiled(fixture);
+    if (ok) { return { valid: true, errors: [] }; }
+    var errors = (compiled.errors || []).map(function (err) {
+      return {
+        path: err.dataPath || err.schemaPath || '',
+        message: err.message,
+        params: err.params || {}
+      };
+    });
+    return { valid: false, errors: errors };
+  }
+
+  return { validate: validate };
+}());
+
+},{"./schema":108,"ajv":1}],110:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17217,7 +23410,7 @@ module.exports = (function () {
   return { bind: bind };
 }());
 
-},{}],20:[function(require,module,exports){
+},{}],111:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17316,7 +23509,7 @@ module.exports = (function () {
   return { play: play };
 }());
 
-},{}],21:[function(require,module,exports){
+},{}],112:[function(require,module,exports){
 (function (process){
 /* global process */
 (function () {
@@ -17412,7 +23605,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":8,"./app/identity":9,"./app/runtime":11,"./app/wire_routes":12,"./persistence/base_model":31,"./persistence/local_storage_adapter":32,"./views/widgets/flash_view":78,"_process":6,"backbone":4,"backbone.marionette":2,"jquery":5}],22:[function(require,module,exports){
+},{"./app/controller":94,"./app/identity":95,"./app/runtime":97,"./app/wire_routes":98,"./persistence/base_model":122,"./persistence/local_storage_adapter":123,"./views/widgets/flash_view":170,"_process":87,"backbone":39,"backbone.marionette":37,"jquery":72}],113:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17510,7 +23703,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table":13,"../collections/matches":17,"../persistence/base_model":31,"../scheduling/scheduler":38,"./messages/championship":25}],23:[function(require,module,exports){
+},{"../classification/table":99,"../collections/matches":103,"../persistence/base_model":122,"../scheduling/scheduler":129,"./messages/championship":116}],114:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17571,7 +23764,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":31,"./messages/match":26}],24:[function(require,module,exports){
+},{"../persistence/base_model":122,"./messages/match":117}],115:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17634,7 +23827,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":31,"./messages/match_event":27}],25:[function(require,module,exports){
+},{"../persistence/base_model":122,"./messages/match_event":118}],116:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17645,7 +23838,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],26:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17656,7 +23849,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],27:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17668,7 +23861,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],28:[function(require,module,exports){
+},{}],119:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17677,7 +23870,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],29:[function(require,module,exports){
+},{}],120:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17706,7 +23899,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":31,"./messages/team":28}],30:[function(require,module,exports){
+},{"../persistence/base_model":122,"./messages/team":119}],121:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17746,7 +23939,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./base_model":31,"backbone":4}],31:[function(require,module,exports){
+},{"./base_model":122,"backbone":39}],122:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17815,7 +24008,7 @@ module.exports = (function () {
   return BaseModel;
 }());
 
-},{"backbone":4}],32:[function(require,module,exports){
+},{"backbone":39}],123:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17928,7 +24121,7 @@ module.exports = (function () {
   return LocalStorageAdapter;
 }());
 
-},{}],33:[function(require,module,exports){
+},{}],124:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -17987,7 +24180,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],34:[function(require,module,exports){
+},{}],125:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18011,7 +24204,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{"./round_robin":37}],35:[function(require,module,exports){
+},{"./round_robin":128}],126:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18085,7 +24278,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./round_robin":37}],36:[function(require,module,exports){
+},{"./round_robin":128}],127:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18148,7 +24341,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{}],37:[function(require,module,exports){
+},{}],128:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18233,7 +24426,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],38:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18301,7 +24494,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./calendar":33,"./double_round_robin":34,"./groups":35,"./knockout":36,"./round_robin":37}],39:[function(require,module,exports){
+},{"./calendar":124,"./double_round_robin":125,"./groups":126,"./knockout":127,"./round_robin":128}],130:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18347,7 +24540,7 @@ module.exports = (function () {
   return { rank: rank };
 }());
 
-},{}],40:[function(require,module,exports){
+},{}],131:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18412,7 +24605,7 @@ module.exports = (function () {
   return { summary: summary };
 }());
 
-},{}],41:[function(require,module,exports){
+},{}],132:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18456,7 +24649,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],42:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18523,7 +24716,7 @@ module.exports = (function () {
   return { aggregate: aggregate };
 }());
 
-},{}],43:[function(require,module,exports){
+},{}],134:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18567,7 +24760,7 @@ module.exports = (function () {
   return { rank: rank };
 }());
 
-},{}],44:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18582,7 +24775,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],45:[function(require,module,exports){
+},{"backbone.marionette":37}],136:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18658,7 +24851,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":51}],46:[function(require,module,exports){
+},{"../helpers/escape_html":142}],137:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18736,7 +24929,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":51,"./form_template":45,"backbone.marionette":2}],47:[function(require,module,exports){
+},{"../helpers/escape_html":142,"./form_template":136,"backbone.marionette":37}],138:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18772,7 +24965,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":44,"./row_view":48,"backbone.marionette":2}],48:[function(require,module,exports){
+},{"./empty_view":135,"./row_view":139,"backbone.marionette":37}],139:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18807,7 +25000,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":51,"backbone.marionette":2}],49:[function(require,module,exports){
+},{"../helpers/escape_html":142,"backbone.marionette":37}],140:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -18928,7 +25121,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../persistence/base_model":31,"../classification/table_view":50,"../helpers/escape_html":51,"../stats/cards_leaderboard_view":67,"../stats/top_scorers_view":69,"backbone.marionette":2}],50:[function(require,module,exports){
+},{"../../collections/match_events":102,"../../persistence/base_model":122,"../classification/table_view":141,"../helpers/escape_html":142,"../stats/cards_leaderboard_view":159,"../stats/top_scorers_view":161,"backbone.marionette":37}],141:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19003,7 +25196,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":51,"../helpers/sparkline":53,"backbone.marionette":2}],51:[function(require,module,exports){
+},{"../helpers/escape_html":142,"../helpers/sparkline":144,"backbone.marionette":37}],142:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19017,7 +25210,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],52:[function(require,module,exports){
+},{}],143:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19056,7 +25249,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],53:[function(require,module,exports){
+},{}],144:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19089,7 +25282,7 @@ module.exports = (function () {
   return { render: render };
 }());
 
-},{}],54:[function(require,module,exports){
+},{}],145:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19111,7 +25304,7 @@ module.exports = (function () {
   return { link: link, h2hLink: h2hLink };
 }());
 
-},{"./escape_html":51}],55:[function(require,module,exports){
+},{"./escape_html":142}],146:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19251,7 +25444,99 @@ module.exports = (function () {
   });
 }());
 
-},{"../collections/championships":15,"../collections/matches":17,"../collections/teams":18,"./helpers/escape_html":51,"./helpers/format_date":52,"backbone.marionette":2}],56:[function(require,module,exports){
+},{"../collections/championships":101,"../collections/matches":103,"../collections/teams":104,"./helpers/escape_html":142,"./helpers/format_date":143,"backbone.marionette":37}],147:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  var Marionette = require('backbone.marionette');
+  var escapeHtml = require('./helpers/escape_html');
+  var importer = require('../importer/importer');
+  var worldCup = require('../data/world_cup_2014');
+  var brasileirao = require('../data/brasileirao_2014');
+
+  var FIXTURES = [
+    { id: 'world-cup-2014', label: 'Copa do Mundo 2014', data: worldCup },
+    { id: 'brasileirao-2014', label: 'Brasileirão Série A 2014', data: brasileirao }
+  ];
+
+  return Marionette.ItemView.extend({
+
+    className: 'importer',
+
+    template: function () {
+      var cards = FIXTURES.map(function (f) {
+        return '<div class="col-md-6">' +
+          '<div class="panel panel-default"><div class="panel-body">' +
+            '<h3>' + escapeHtml(f.label) + '</h3>' +
+            '<p>id: <code>' + escapeHtml(f.id) + '</code> · times: ' +
+              f.data.teams.length + ' · partidas: ' + f.data.matches.length +
+            '</p>' +
+            '<button class="btn btn-primary import-btn" ' +
+                   'data-fixture="' + escapeHtml(f.id) + '">' +
+              'Importar' +
+            '</button>' +
+          '</div></div>' +
+        '</div>';
+      }).join('');
+      return '<header class="page-header">' +
+          '<h1>Importar dados de exemplo</h1>' +
+          '<p class="text-muted">' +
+            'Carrega um conjunto pronto de campeonato, times e partidas no ' +
+            '<code>localStorage</code>. Útil para popular a aplicação ' +
+            'rapidamente para demonstração.' +
+          '</p>' +
+        '</header>' +
+        '<div class="row">' + cards + '</div>' +
+        '<div class="importer-result"></div>';
+    },
+
+    events: {
+      'click .import-btn': 'onImport'
+    },
+
+    onImport: function (e) {
+      if (e && e.preventDefault) { e.preventDefault(); }
+      var id = e.currentTarget.getAttribute('data-fixture');
+      var fixture = FIXTURES.filter(function (f) { return f.id === id; })[0];
+      if (!fixture) { return; }
+      try {
+        var summary = importer.importFixture(fixture.data);
+        this.showSuccess(fixture.label, summary);
+        this.trigger('importer:done', summary);
+      } catch (err) {
+        this.showError(err);
+      }
+    },
+
+    showSuccess: function (label, summary) {
+      this.$('.importer-result').html(
+        '<div class="alert alert-success">' +
+          '<strong>' + escapeHtml(label) + ' importado.</strong> ' +
+          summary.teamsCount + ' times, ' +
+          summary.matchesCount + ' partidas, ' +
+          summary.eventsCount + ' eventos · ' +
+          '<a href="#/campeonatos/' + encodeURIComponent(summary.championship.id) +
+          '">ver campeonato</a>' +
+        '</div>'
+      );
+    },
+
+    showError: function (err) {
+      var details = (err.errors || []).map(function (e) {
+        return e.path + ' ' + e.message;
+      }).join('<br>') || escapeHtml(err.message);
+      this.$('.importer-result').html(
+        '<div class="alert alert-danger">' +
+          '<strong>Falha na importação:</strong><br>' +
+          details +
+        '</div>'
+      );
+    }
+
+  });
+}());
+
+},{"../data/brasileirao_2014":105,"../data/world_cup_2014":106,"../importer/importer":107,"./helpers/escape_html":142,"backbone.marionette":37}],148:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19266,7 +25551,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],57:[function(require,module,exports){
+},{"backbone.marionette":37}],149:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19321,7 +25606,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":51,"backbone.marionette":2}],58:[function(require,module,exports){
+},{"../helpers/escape_html":142,"backbone.marionette":37}],150:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19361,7 +25646,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":51,"../helpers/team_link":54,"./status_labels":65,"backbone.marionette":2}],59:[function(require,module,exports){
+},{"../helpers/escape_html":142,"../helpers/team_link":145,"./status_labels":157,"backbone.marionette":37}],151:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19394,7 +25679,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":56,"./row_view":61,"backbone.marionette":2}],60:[function(require,module,exports){
+},{"./empty_view":148,"./row_view":153,"backbone.marionette":37}],152:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19443,7 +25728,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":51,"../helpers/format_date":52,"../helpers/team_link":54,"./status_labels":65}],61:[function(require,module,exports){
+},{"../helpers/escape_html":142,"../helpers/format_date":143,"../helpers/team_link":145,"./status_labels":157}],153:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19457,7 +25742,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":60,"backbone.marionette":2}],62:[function(require,module,exports){
+},{"./row_template":152,"backbone.marionette":37}],154:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19659,7 +25944,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../models/match_event":24,"../../persistence/base_model":31,"../helpers/escape_html":51,"backbone.marionette":2}],63:[function(require,module,exports){
+},{"../../collections/match_events":102,"../../models/match_event":115,"../../persistence/base_model":122,"../helpers/escape_html":142,"backbone.marionette":37}],155:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19799,7 +26084,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":16,"../../live/cross_tab":19,"../../live/replay":20,"../../persistence/base_model":31,"./header_view":58,"./stats_view":64,"./timeline_view":66,"backbone.marionette":2}],64:[function(require,module,exports){
+},{"../../collections/match_events":102,"../../live/cross_tab":110,"../../live/replay":111,"../../persistence/base_model":122,"./header_view":150,"./stats_view":156,"./timeline_view":158,"backbone.marionette":37}],156:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19852,7 +26137,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/match_stats":41,"backbone.marionette":2}],65:[function(require,module,exports){
+},{"../../stats/match_stats":132,"backbone.marionette":37}],157:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19874,7 +26159,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],66:[function(require,module,exports){
+},{}],158:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19895,7 +26180,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./event_item_view":57,"backbone.marionette":2}],67:[function(require,module,exports){
+},{"./event_item_view":149,"backbone.marionette":37}],159:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -19943,7 +26228,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/cards_leaderboard":39,"../helpers/escape_html":51,"backbone.marionette":2}],68:[function(require,module,exports){
+},{"../../stats/cards_leaderboard":130,"../helpers/escape_html":142,"backbone.marionette":37}],160:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20010,7 +26295,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/matches":17,"../../stats/head_to_head":40,"../helpers/escape_html":51,"../helpers/format_date":52,"backbone.marionette":2}],69:[function(require,module,exports){
+},{"../../collections/matches":103,"../../stats/head_to_head":131,"../helpers/escape_html":142,"../helpers/format_date":143,"backbone.marionette":37}],161:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20054,7 +26339,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/top_scorers":43,"../helpers/escape_html":51,"backbone.marionette":2}],70:[function(require,module,exports){
+},{"../../stats/top_scorers":134,"../helpers/escape_html":142,"backbone.marionette":37}],162:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20069,7 +26354,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":2}],71:[function(require,module,exports){
+},{"backbone.marionette":37}],163:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20100,7 +26385,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":51}],72:[function(require,module,exports){
+},{"../helpers/escape_html":142}],164:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20156,7 +26441,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":51,"./form_template":71,"backbone.marionette":2}],73:[function(require,module,exports){
+},{"../helpers/escape_html":142,"./form_template":163,"backbone.marionette":37}],165:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20180,7 +26465,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],74:[function(require,module,exports){
+},{}],166:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20202,7 +26487,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":70,"./list_template":73,"./row_view":77,"backbone.marionette":2}],75:[function(require,module,exports){
+},{"./empty_view":162,"./list_template":165,"./row_view":169,"backbone.marionette":37}],167:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20313,7 +26598,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/matches":17,"../../stats/team_record":42,"../helpers/escape_html":51,"../helpers/sparkline":53,"backbone.marionette":2}],76:[function(require,module,exports){
+},{"../../collections/matches":103,"../../stats/team_record":133,"../helpers/escape_html":142,"../helpers/sparkline":144,"backbone.marionette":37}],168:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20341,7 +26626,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":51}],77:[function(require,module,exports){
+},{"../helpers/escape_html":142}],169:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20370,7 +26655,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":76,"backbone.marionette":2}],78:[function(require,module,exports){
+},{"./row_template":168,"backbone.marionette":37}],170:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -20433,4 +26718,4 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":51,"backbone.marionette":2}]},{},[21]);
+},{"../helpers/escape_html":142,"backbone.marionette":37}]},{},[112]);
