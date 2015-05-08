@@ -19,6 +19,7 @@ module.exports = (function () {
   var MatchShowView = require('../views/matches/show_view');
   var MatchesListView = require('../views/matches/list_view');
   var ScorerView = require('../views/matches/scorer_view');
+  var ImporterView = require('../views/importer_view');
   var BaseModel = require('../persistence/base_model');
 
   var SEED_TEAMS = [
@@ -201,11 +202,24 @@ module.exports = (function () {
     };
   }
 
+  function wireImporter(app, controller, BackboneDep, flash) {
+    controller.importer = function () {
+      var view = new ImporterView();
+      view.on('importer:done', function (summary) {
+        if (flash) {
+          flash('Importado ' + summary.championship.name + '.', 'success');
+        }
+      });
+      app.getRegion('mainRegion').show(view);
+    };
+  }
+
   function wireAll(app, controller, BackboneDep, flash) {
     wireHome(app, controller);
     wireTeamRoutes(app, controller, BackboneDep, flash);
     wireChampionshipRoutes(app, controller, BackboneDep, flash);
     wireMatchRoutes(app, controller, flash);
+    wireImporter(app, controller, BackboneDep, flash);
   }
 
   return {
