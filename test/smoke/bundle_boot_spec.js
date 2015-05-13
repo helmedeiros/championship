@@ -250,6 +250,29 @@ describe('smoke/bundle', function () {
     }, 400);
   });
 
+  it('navega para #/importar e mostra cartões de fixtures prontos', function (done) {
+    var bundle = fs.readFileSync(BUNDLE, 'utf8');
+    var html = '<!DOCTYPE html><html><body>' +
+      '<div id="regiao-navegacao"></div>' +
+      '<div id="regiao-mensagens"></div>' +
+      '<div id="regiao-principal"><h1>Carregando&hellip;</h1></div>' +
+      '</body></html>';
+    var doc = jsdom.jsdom(html, { url: 'http://localhost/#/importar' });
+    var win = doc.defaultView;
+    polyfillLocalStorage(win);
+    try { win.eval(bundle); } catch (e) { return done(e); }
+    setTimeout(function () {
+      var region = doc.getElementById('regiao-principal');
+      try {
+        var importer = region.querySelector('.importer');
+        expect(importer, 'importer view deveria renderizar').to.not.equal(null);
+        var buttons = region.querySelectorAll('.import-btn');
+        expect(buttons.length, 'deveria haver botões de importação').to.be.above(1);
+        done();
+      } catch (a) { done(a); }
+    }, 400);
+  });
+
   it('navega para #/times e renderiza a tabela TeamsListView', function (done) {
     var bundle = fs.readFileSync(BUNDLE, 'utf8');
 
