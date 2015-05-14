@@ -25487,11 +25487,35 @@ module.exports = (function () {
           '</p>' +
         '</header>' +
         '<div class="row">' + cards + '</div>' +
-        '<div class="importer-result"></div>';
+        '<div class="importer-result"></div>' +
+        '<hr>' +
+        '<div class="importer-danger-zone">' +
+          '<h4>Limpar dados</h4>' +
+          '<p class="text-muted">Apaga todos os campeonatos, times, partidas ' +
+            'e eventos do localStorage deste navegador.</p>' +
+          '<button class="btn btn-danger clear-btn">Limpar tudo</button>' +
+        '</div>';
     },
 
     events: {
-      'click .import-btn': 'onImport'
+      'click .import-btn': 'onImport',
+      'click .clear-btn':  'onClear'
+    },
+
+    onClear: function (e) {
+      if (e && e.preventDefault) { e.preventDefault(); }
+      if (typeof window !== 'undefined' && window.confirm &&
+          !window.confirm('Apagar todos os dados do localStorage?')) {
+        return;
+      }
+      var storage = require('../persistence/base_model').getStorage();
+      if (storage && typeof storage.reset === 'function') { storage.reset(); }
+      this.$('.importer-result').html(
+        '<div class="alert alert-warning">' +
+          'localStorage limpo. Recarregue a página para semear novamente.' +
+        '</div>'
+      );
+      this.trigger('importer:cleared');
     },
 
     onImport: function (e) {
@@ -25536,7 +25560,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../data/brasileirao_2014":105,"../data/world_cup_2014":106,"../importer/importer":107,"./helpers/escape_html":142,"backbone.marionette":37}],148:[function(require,module,exports){
+},{"../data/brasileirao_2014":105,"../data/world_cup_2014":106,"../importer/importer":107,"../persistence/base_model":122,"./helpers/escape_html":142,"backbone.marionette":37}],148:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
