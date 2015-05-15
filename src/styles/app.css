@@ -272,3 +272,25 @@ body {
   padding: 0 4px;
   border-radius: 2px;
 }
+
+.importer .panel {
+  min-height: 160px;
+}
+
+.importer .panel code {
+  font-size: 11px;
+  background: #f5f5f5;
+  padding: 1px 4px;
+}
+
+.importer .importer-result {
+  margin-top: 20px;
+}
+
+.importer-danger-zone {
+  margin-top: 30px;
+  padding: 14px;
+  border: 1px dashed #d35400;
+  border-radius: 4px;
+  background: #fffaf3;
+}
