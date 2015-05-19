@@ -125,11 +125,17 @@ module.exports = (function () {
           '</div>' +
         '</div>' +
         '<div class="row home-recent">' +
-          '<div class="col-md-12">' +
+          '<div class="col-md-8">' +
             '<h3>Últimos resultados</h3>' +
             '<ul class="list-unstyled recent-finished">' +
               recentFinishedHtml() +
             '</ul>' +
+          '</div>' +
+          '<div class="col-md-4">' +
+            '<h3>Importar dados de exemplo</h3>' +
+            '<p>Carregue Copa do Mundo 2014 ou Brasileirão 2014 ' +
+              'no localStorage com um clique.</p>' +
+            '<a class="btn btn-info" href="#/importar">Ir para o importador</a>' +
           '</div>' +
         '</div>';
     }
