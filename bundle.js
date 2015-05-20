@@ -23229,6 +23229,11 @@ module.exports = (function () {
     return saved;
   }
 
+  function alreadyImported(storage, championshipId) {
+    var existing = storage.read('championships', championshipId);
+    return existing !== null && existing !== undefined;
+  }
+
   function importFixture(fixture, options) {
     var opts = options || {};
     var storage = opts.storage || BaseModel.getStorage();
@@ -23239,6 +23244,12 @@ module.exports = (function () {
       var err = new Error('Fixture inválido');
       err.errors = validation.errors;
       throw err;
+    }
+
+    if (alreadyImported(storage, fixture.championship.id) && !opts.overwrite) {
+      var dup = new Error('Campeonato já importado: ' + fixture.championship.id);
+      dup.code = 'DUPLICATE';
+      throw dup;
     }
 
     var champ = importChampionship(storage, fixture.championship);
