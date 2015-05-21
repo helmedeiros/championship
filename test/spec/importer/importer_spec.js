@@ -75,4 +75,18 @@ describe('importer/importer', function () {
     }).to.not.throw();
   });
 
+  it('bloqueia importação de campeonato já existente', function () {
+    importer.importFixture(smallFixture());
+    expect(function () {
+      importer.importFixture(smallFixture());
+    }).to.throw(/já importado/);
+  });
+
+  it('permite reimportar com overwrite:true', function () {
+    importer.importFixture(smallFixture());
+    expect(function () {
+      importer.importFixture(smallFixture(), { overwrite: true });
+    }).to.not.throw();
+  });
+
 });
