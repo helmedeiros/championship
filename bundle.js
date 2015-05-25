@@ -25515,8 +25515,9 @@ module.exports = (function () {
     },
 
     events: {
-      'click .import-btn': 'onImport',
-      'click .clear-btn':  'onClear'
+      'click .import-btn':    'onImport',
+      'click .clear-btn':     'onClear',
+      'click .overwrite-btn': 'onOverwrite'
     },
 
     onClear: function (e) {
@@ -25538,14 +25539,24 @@ module.exports = (function () {
     onImport: function (e) {
       if (e && e.preventDefault) { e.preventDefault(); }
       var id = e.currentTarget.getAttribute('data-fixture');
+      this._doImport(id, false);
+    },
+
+    onOverwrite: function (e) {
+      if (e && e.preventDefault) { e.preventDefault(); }
+      var id = e.currentTarget.getAttribute('data-fixture');
+      this._doImport(id, true);
+    },
+
+    _doImport: function (id, overwrite) {
       var fixture = FIXTURES.filter(function (f) { return f.id === id; })[0];
       if (!fixture) { return; }
       try {
-        var summary = importer.importFixture(fixture.data);
+        var summary = importer.importFixture(fixture.data, { overwrite: overwrite });
         this.showSuccess(fixture.label, summary);
         this.trigger('importer:done', summary);
       } catch (err) {
-        this.showError(err);
+        this.showError(err, fixture);
       }
     },
 
@@ -25562,7 +25573,19 @@ module.exports = (function () {
       );
     },
 
-    showError: function (err) {
+    showError: function (err, fixture) {
+      if (err.code === 'DUPLICATE' && fixture) {
+        this.$('.importer-result').html(
+          '<div class="alert alert-warning">' +
+            '<strong>' + escapeHtml(fixture.label) +
+            ' já foi importado.</strong> ' +
+            '<button class="btn btn-warning btn-xs overwrite-btn" ' +
+                   'data-fixture="' + escapeHtml(fixture.id) +
+                   '">Reimportar (substituir)</button>' +
+          '</div>'
+        );
+        return;
+      }
       var details = (err.errors || []).map(function (e) {
         return e.path + ' ' + e.message;
       }).join('<br>') || escapeHtml(err.message);
