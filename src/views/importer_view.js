@@ -4,20 +4,24 @@ module.exports = (function () {
   var Marionette = require('backbone.marionette');
   var escapeHtml = require('./helpers/escape_html');
   var importer = require('../importer/importer');
-  var worldCup = require('../data/world_cup_2014');
-  var brasileirao = require('../data/brasileirao_2014');
+  var registry = require('../importer/registry');
 
-  var FIXTURES = [
-    { id: 'world-cup-2014', label: 'Copa do Mundo 2014', data: worldCup },
-    { id: 'brasileirao-2014', label: 'Brasileirão Série A 2014', data: brasileirao }
-  ];
+  function buildFixtures() {
+    return registry.list().map(function (entry) {
+      return {
+        id: entry.id,
+        label: entry.label,
+        data: registry.get(entry.id)
+      };
+    });
+  }
 
   return Marionette.ItemView.extend({
 
     className: 'importer',
 
     template: function () {
-      var cards = FIXTURES.map(function (f) {
+      var cards = buildFixtures().map(function (f) {
         return '<div class="col-md-6">' +
           '<div class="panel panel-default"><div class="panel-body">' +
             '<h3>' + escapeHtml(f.label) + '</h3>' +
@@ -85,8 +89,9 @@ module.exports = (function () {
     },
 
     _doImport: function (id, overwrite) {
-      var fixture = FIXTURES.filter(function (f) { return f.id === id; })[0];
-      if (!fixture) { return; }
+      var entry = registry.list().filter(function (e) { return e.id === id; })[0];
+      if (!entry) { return; }
+      var fixture = { id: id, label: entry.label, data: registry.get(id) };
       try {
         var summary = importer.importFixture(fixture.data, { overwrite: overwrite });
         this.showSuccess(fixture.label, summary);
