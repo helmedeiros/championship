@@ -56,6 +56,28 @@ Públicas:
 - **Carreira de time** (`stats/team_record`): pontos, saldo e participações
   por campeonato somando todas as edições.
 
+## Importadores prontos
+
+A rota `#/importar` traz dois conjuntos pré-embutidos para popular a
+aplicação em poucos cliques:
+
+- **Copa do Mundo FIFA 2014** — 32 seleções, 64 partidas (48 de grupos + 16
+  do mata-mata) com placares reais e narração completa de Brasil 1×7
+  Alemanha e da final Alemanha 1×0 Argentina.
+- **Brasileirão Série A 2014** — 20 clubes com seus estádios, e uma seleção
+  de 15 partidas marcantes (rodada 38 completa + clássicos do ano).
+
+Cada fixture é validado contra um JSON Schema (`src/importer/schema.js`)
+via Ajv 0.6 antes de tocar o `localStorage`. A reimportação do mesmo
+campeonato é bloqueada por padrão — o botão **Reimportar (substituir)**
+aparece para forçar o overwrite. O cartão **Limpar tudo** apaga todo o
+estado do navegador.
+
+Para adicionar um novo fixture: crie `src/data/seu_campeonato.js` exportando
+o objeto `{championship, teams, matches}`, registre em
+`src/importer/registry.js` e adicione um spec em
+`test/spec/data/fixtures_spec.js` que rode o validator.
+
 ## Acompanhamento ao vivo
 
 - Abra `#/admin/partidas/:id/scoreboard` em uma aba para operar como scorer.
