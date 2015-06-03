@@ -162,6 +162,8 @@ describe('smoke/bundle', function () {
     var doc = jsdom.jsdom(html, { url: 'http://localhost/#/campeonatos' });
     var win = doc.defaultView;
     polyfillLocalStorage(win);
+    // Configura como admin para passar pelo gate de rotas admin/*.
+    win.localStorage.setItem('championship:role', 'admin');
     try { win.eval(bundle); } catch (e) { return done(e); }
     setTimeout(function () {
       // need a real match id: grab the first match of the seeded championship
