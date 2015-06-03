@@ -57,7 +57,7 @@
     });
 
     app.on('start', function () {
-      wireRoutes.bindRouter(BackboneDep, controller);
+      wireRoutes.bindRouter(BackboneDep, controller, { flash: flash });
       if (!BackboneDep.History.started) {
         BackboneDep.history.start();
       }

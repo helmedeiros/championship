@@ -5,6 +5,7 @@ require('../helpers/dom')();
 var MemoryStorage = require('../../src/persistence/memory_storage');
 var BaseModel = require('../../src/persistence/base_model');
 var Backbone = require('backbone');
+var role = require('../../src/app/role');
 var createApp = require('../../src/main');
 
 describe('main/createApp', function () {
@@ -18,6 +19,17 @@ describe('main/createApp', function () {
     if (Backbone.History.started) {
       Backbone.history.stop();
     }
+    // jsdom 5 não traz localStorage; aplica polyfill mínimo aqui.
+    if (!window.localStorage) {
+      var d = {};
+      window.localStorage = {
+        getItem: function (k) { return d.hasOwnProperty(k) ? d[k] : null; },
+        setItem: function (k, v) { d[k] = String(v); },
+        removeItem: function (k) { delete d[k]; }
+      };
+    }
+    // Specs administrativos precisam estar autenticados como admin.
+    role.set('admin');
   });
 
   function instance() {

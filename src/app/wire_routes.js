@@ -20,6 +20,7 @@ module.exports = (function () {
   var MatchesListView = require('../views/matches/list_view');
   var ScorerView = require('../views/matches/scorer_view');
   var ImporterView = require('../views/importer_view');
+  var role = require('./role');
   var BaseModel = require('../persistence/base_model');
 
   var SEED_TEAMS = [
@@ -73,15 +74,25 @@ module.exports = (function () {
     });
   }
 
-  function bindRouter(BackboneRef, controller) {
+  function bindRouter(BackboneRef, controller, options) {
+    var opts = options || {};
+    var flash = opts.flash;
     var Router = BackboneRef.Router.extend({ routes: routerConfig.routes });
     var router = new Router();
     Object.keys(routerConfig.routes).forEach(function (route) {
       var handlerName = routerConfig.routes[route];
       var handler = controller[handlerName];
-      if (typeof handler === 'function') {
-        router.on('route:' + handlerName, handler.bind(controller));
-      }
+      if (typeof handler !== 'function') { return; }
+      var bound = handler.bind(controller);
+      var guarded = handlerName.indexOf('admin.') === 0 ? function () {
+        if (!role.isAdmin()) {
+          if (flash) { flash('Acesso restrito à área admin.', 'warning'); }
+          BackboneRef.history.navigate('admin/setup', { trigger: true });
+          return;
+        }
+        bound.apply(null, arguments);
+      } : bound;
+      router.on('route:' + handlerName, guarded);
     });
     return router;
   }
