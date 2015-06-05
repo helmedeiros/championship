@@ -20,6 +20,7 @@ module.exports = (function () {
   var MatchesListView = require('../views/matches/list_view');
   var ScorerView = require('../views/matches/scorer_view');
   var ImporterView = require('../views/importer_view');
+  var AdminSetupView = require('../views/admin_setup_view');
   var role = require('./role');
   var BaseModel = require('../persistence/base_model');
 
@@ -100,6 +101,10 @@ module.exports = (function () {
   function wireHome(app, controller) {
     controller.home = function () {
       app.getRegion('mainRegion').show(new HomeView());
+    };
+    controller.adminSetup = function () {
+      var view = new AdminSetupView();
+      app.getRegion('mainRegion').show(view);
     };
   }
 
