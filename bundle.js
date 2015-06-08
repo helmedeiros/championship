@@ -22414,6 +22414,7 @@ module.exports = (function () {
       'h2h/:teamA/:teamB':      'h2hShow',
       'importar':               'importer',
       'admin':                  'admin.home',
+      'admin/setup':            'adminSetup',
       'admin/campeonatos':      'admin.championshipsList',
       'admin/campeonatos/novo': 'admin.championshipNew',
       'admin/times':            'admin.teamsList',
