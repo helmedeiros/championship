@@ -15,13 +15,18 @@ describe('app/router', function () {
   });
 
   it('separa handlers da área admin pelo prefixo admin.', function () {
+    // /admin/setup é a porta de entrada (sem guard) para virar admin
     var pubAdmin = Object.keys(router.routes).filter(function (route) {
-      return route.indexOf(router.adminPrefix) === 0;
+      return route.indexOf(router.adminPrefix) === 0 && route !== 'admin/setup';
     });
     expect(pubAdmin.length).to.be.above(0);
     pubAdmin.forEach(function (route) {
       expect(router.routes[route]).to.match(/^admin\./);
     });
+  });
+
+  it('admin/setup escapa do prefixo admin. para não exigir auth', function () {
+    expect(router.routes['admin/setup']).to.equal('adminSetup');
   });
 
   it('expõe handler para rota de não encontrado', function () {
