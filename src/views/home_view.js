@@ -7,6 +7,7 @@ module.exports = (function () {
   var Matches = require('../collections/matches');
   var Teams = require('../collections/teams');
   var Championships = require('../collections/championships');
+  var role = require('../app/role');
 
   function countTeams() {
     try {
@@ -137,7 +138,12 @@ module.exports = (function () {
               'no localStorage com um clique.</p>' +
             '<a class="btn btn-info" href="#/importar">Ir para o importador</a>' +
           '</div>' +
-        '</div>';
+        '</div>' +
+        (role.isAdmin() ?
+          '<div class="alert alert-info admin-banner">' +
+            'Você está em <strong>modo admin</strong>. ' +
+            '<a href="#/admin/setup">trocar para modo usuário</a>' +
+          '</div>' : '');
     }
 
   });
