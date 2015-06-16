@@ -1,0 +1,40 @@
+module.exports = (function () {
+  'use strict';
+
+  return {
+    'app.title':                'championship',
+    'home.title':               'Página inicial',
+    'home.championships':       'Campeonatos',
+    'home.teams':               'Times',
+    'home.highlight':           'Partida em destaque',
+    'home.recent':              'Últimos resultados',
+    'home.import':              'Importar dados de exemplo',
+    'nav.championships':        'Campeonatos',
+    'nav.matches':              'Partidas',
+    'nav.teams':                'Times',
+    'nav.import':               'Importar',
+    'nav.admin':                'Modo admin',
+    'admin.banner':             'Você está em modo admin',
+    'common.loading':           'Carregando...',
+    'common.error':             'Algo deu errado',
+    'common.empty':             'Nada por aqui ainda.',
+    'common.save':              'Salvar',
+    'common.cancel':            'Cancelar',
+    'common.delete':            'Excluir',
+    'common.edit':              'Editar',
+    'common.confirm':           'Confirmar',
+    'champ.classification':     'Classificação',
+    'champ.top_scorers':        'Artilheiros',
+    'champ.cards':              'Disciplina',
+    'match.live':               'AO VIVO',
+    'match.finished':           'ENCERRADO',
+    'match.timeline':           'Linha do tempo',
+    'match.stats':              'Estatísticas',
+    'team.matches_played':      'Jogos',
+    'team.wins':                'Vitórias',
+    'team.draws':               'Empates',
+    'team.losses':              'Derrotas',
+    'team.points':              'Pontos',
+    'team.goal_diff':           'SG'
+  };
+}());

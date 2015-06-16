@@ -1,0 +1,40 @@
+module.exports = (function () {
+  'use strict';
+
+  return {
+    'app.title':                'championship',
+    'home.title':               'Home',
+    'home.championships':       'Championships',
+    'home.teams':               'Teams',
+    'home.highlight':           'Featured match',
+    'home.recent':              'Recent results',
+    'home.import':              'Import sample data',
+    'nav.championships':        'Championships',
+    'nav.matches':              'Matches',
+    'nav.teams':                'Teams',
+    'nav.import':               'Import',
+    'nav.admin':                'Admin mode',
+    'admin.banner':             'You are in admin mode',
+    'common.loading':           'Loading...',
+    'common.error':             'Something went wrong',
+    'common.empty':             'Nothing here yet.',
+    'common.save':              'Save',
+    'common.cancel':            'Cancel',
+    'common.delete':            'Delete',
+    'common.edit':              'Edit',
+    'common.confirm':           'Confirm',
+    'champ.classification':     'Standings',
+    'champ.top_scorers':        'Top scorers',
+    'champ.cards':              'Discipline',
+    'match.live':               'LIVE',
+    'match.finished':           'FINAL',
+    'match.timeline':           'Timeline',
+    'match.stats':              'Statistics',
+    'team.matches_played':      'Played',
+    'team.wins':                'Wins',
+    'team.draws':               'Draws',
+    'team.losses':              'Losses',
+    'team.points':              'Points',
+    'team.goal_diff':           'GD'
+  };
+}());
