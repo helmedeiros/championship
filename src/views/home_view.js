@@ -8,6 +8,7 @@ module.exports = (function () {
   var Teams = require('../collections/teams');
   var Championships = require('../collections/championships');
   var role = require('../app/role');
+  var i18n = require('../i18n');
 
   function countTeams() {
     try {
@@ -102,24 +103,28 @@ module.exports = (function () {
         '<div class="row home-cards">' +
           '<div class="col-md-4">' +
             '<div class="panel panel-default"><div class="panel-body">' +
-              '<h3>Campeonatos <span class="badge home-count-champs">' +
+              '<h3>' + i18n.t('home.championships') +
+                ' <span class="badge home-count-champs">' +
                 countChampionships() + '</span></h3>' +
               '<p>Veja a tabela de pontos e o calendário.</p>' +
-              '<a class="btn btn-primary" href="#/campeonatos">Ver campeonatos</a>' +
+              '<a class="btn btn-primary" href="#/campeonatos">' +
+                i18n.t('nav.championships') + '</a>' +
             '</div></div>' +
           '</div>' +
           '<div class="col-md-4">' +
             '<div class="panel panel-default"><div class="panel-body">' +
-              '<h3>Times <span class="badge home-count-teams">' +
+              '<h3>' + i18n.t('home.teams') +
+                ' <span class="badge home-count-teams">' +
                 countTeams() + '</span></h3>' +
               '<p>Cadastre clubes e seleções.</p>' +
-              '<a class="btn btn-primary" href="#/times">Ver times</a>' +
+              '<a class="btn btn-primary" href="#/times">' +
+                i18n.t('nav.teams') + '</a>' +
             '</div></div>' +
           '</div>' +
           '<div class="col-md-4">' +
             '<div class="panel panel-default home-highlight">' +
               '<div class="panel-body">' +
-                '<h3>Partida em destaque</h3>' +
+                '<h3>' + i18n.t('home.highlight') + '</h3>' +
                 highlightHtml() +
               '</div>' +
             '</div>' +
