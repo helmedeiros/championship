@@ -25705,9 +25705,30 @@ module.exports = (function () {
       '</p>';
   }
 
+  function localeSelector() {
+    var current = i18n.getLocale();
+    var html = '<div class="locale-selector">' +
+      '<label>Idioma / Language: </label>';
+    i18n.locales().forEach(function (loc) {
+      var active = loc === current ? ' active' : '';
+      html = html + ' <button class="btn btn-default btn-xs locale-btn' + active +
+        '" data-locale="' + loc + '">' + loc + '</button>';
+    });
+    return html + '</div>';
+  }
+
   return Marionette.ItemView.extend({
 
     className: 'home',
+
+    events: {
+      'click .locale-btn': 'onLocale'
+    },
+
+    onLocale: function (e) {
+      var loc = e.currentTarget.getAttribute('data-locale');
+      try { i18n.setLocale(loc); this.render(); } catch (err) {}
+    },
 
     template: function () {
       return '' +
@@ -25766,7 +25787,8 @@ module.exports = (function () {
           '<div class="alert alert-info admin-banner">' +
             'Você está em <strong>modo admin</strong>. ' +
             '<a href="#/admin/setup">trocar para modo usuário</a>' +
-          '</div>' : '');
+          '</div>' : '') +
+        localeSelector();
     }
 
   });
