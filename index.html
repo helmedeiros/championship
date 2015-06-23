@@ -26,12 +26,20 @@
     </div>
   </nav>
 
-  <div class="container">
-    <div id="regiao-mensagens"></div>
-    <div id="regiao-principal">
+  <div class="container" role="main">
+    <div id="regiao-mensagens" role="alert" aria-live="polite"></div>
+    <div id="regiao-principal" role="region" aria-label="conteúdo principal">
       <h1>Carregando&hellip;</h1>
     </div>
   </div>
+
+  <footer class="container app-footer">
+    <hr>
+    <p class="text-muted text-center">
+      championship · gerenciador de campeonatos para o navegador
+      · <a href="https://github.com/helmedeiros/championship">código no GitHub</a>
+    </p>
+  </footer>
 
   <script src="bundle.js"></script>
 </body>
