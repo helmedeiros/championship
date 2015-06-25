@@ -26191,15 +26191,22 @@ module.exports = (function () {
         '</div>' +
         '<div class="scorer-goals">' +
           '<input type="text" class="form-control player-input" ' +
-                 'placeholder="Autor do gol (opcional)">' +
-          '<button class="btn btn-success goal-home">+ Gol mandante</button> ' +
-          '<button class="btn btn-success goal-away">+ Gol visitante</button>' +
+                 'placeholder="Autor do gol (opcional)" ' +
+                 'aria-label="Autor do gol">' +
+          '<button class="btn btn-success goal-home" ' +
+                  'aria-label="Marcar gol do mandante">+ Gol mandante</button> ' +
+          '<button class="btn btn-success goal-away" ' +
+                  'aria-label="Marcar gol do visitante">+ Gol visitante</button>' +
         '</div>' +
         '<div class="scorer-cards">' +
-          '<button class="btn btn-warning yellow-home">Amarelo M</button> ' +
-          '<button class="btn btn-warning yellow-away">Amarelo V</button> ' +
-          '<button class="btn btn-danger red-home">Vermelho M</button> ' +
-          '<button class="btn btn-danger red-away">Vermelho V</button>' +
+          '<button class="btn btn-warning yellow-home" ' +
+                  'aria-label="Cartão amarelo para o mandante">Amarelo M</button> ' +
+          '<button class="btn btn-warning yellow-away" ' +
+                  'aria-label="Cartão amarelo para o visitante">Amarelo V</button> ' +
+          '<button class="btn btn-danger red-home" ' +
+                  'aria-label="Cartão vermelho para o mandante">Vermelho M</button> ' +
+          '<button class="btn btn-danger red-away" ' +
+                  'aria-label="Cartão vermelho para o visitante">Vermelho V</button>' +
         '</div>' +
         '<div class="scorer-sub">' +
           '<input type="text" class="form-control sub-in" ' +
