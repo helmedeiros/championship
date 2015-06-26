@@ -308,4 +308,28 @@ describe('smoke/bundle', function () {
     }, 300);
   });
 
+  it('admin gate redireciona usuário não-admin para /admin/setup', function (done) {
+    var bundle = fs.readFileSync(BUNDLE, 'utf8');
+    var html = '<!DOCTYPE html><html><body>' +
+      '<div id="regiao-navegacao"></div>' +
+      '<div id="regiao-mensagens"></div>' +
+      '<div id="regiao-principal"><h1>Carregando&hellip;</h1></div>' +
+      '</body></html>';
+    var doc = jsdom.jsdom(html,
+      { url: 'http://localhost/#/admin/campeonatos/novo' });
+    var win = doc.defaultView;
+    polyfillLocalStorage(win);
+    // não setar role → permanece como user
+    try { win.eval(bundle); } catch (e) { return done(e); }
+    setTimeout(function () {
+      try {
+        expect(win.location.hash).to.match(/admin\/setup/);
+        var region = doc.getElementById('regiao-principal');
+        expect(region.querySelector('.admin-setup'),
+          'admin-setup deveria renderizar').to.not.equal(null);
+        done();
+      } catch (a) { done(a); }
+    }, 400);
+  });
+
 });
