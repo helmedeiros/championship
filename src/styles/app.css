@@ -295,6 +295,21 @@ body {
   background: #fffaf3;
 }
 
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: #2c3e50;
+  color: #fff;
+  padding: 8px 14px;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  left: 10px;
+  top: 10px;
+}
+
 .app-footer {
   margin-top: 40px;
   margin-bottom: 20px;
