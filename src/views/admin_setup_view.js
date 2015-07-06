@@ -17,8 +17,12 @@ module.exports = (function () {
         '</p>' +
         '<div class="admin-setup-actions">' +
           (isAdmin ?
-            '<button class="btn btn-default leave-admin">Sair da área admin</button>' :
-            '<button class="btn btn-primary become-admin">' +
+            '<button class="btn btn-default leave-admin" ' +
+                    'aria-label="Sair do modo administrador">' +
+              'Sair da área admin' +
+            '</button>' :
+            '<button class="btn btn-primary become-admin" ' +
+                    'aria-label="Entrar no modo administrador">' +
               'Entrar como admin' +
             '</button>') +
         '</div>';
