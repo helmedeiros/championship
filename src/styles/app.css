@@ -336,6 +336,29 @@ body {
   opacity: 0.7;
 }
 
+@media print {
+  .navbar,
+  .app-footer,
+  .admin-banner,
+  .locale-selector,
+  .scorer,
+  .skip-link,
+  .btn,
+  .flash-banner {
+    display: none !important;
+  }
+  body {
+    padding: 0;
+  }
+  .classification-table {
+    font-size: 11px;
+  }
+  a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+}
+
 @media (max-width: 768px) {
   .home-cards .col-md-4 {
     margin-bottom: 12px;
