@@ -30,4 +30,12 @@ describe('i18n', function () {
     expect(i18n.locales()).to.include('en');
   });
 
+  it('traduz chaves de navegação adicionadas', function () {
+    expect(i18n.t('common.back')).to.equal('Voltar');
+    expect(i18n.t('common.try_again')).to.equal('Tentar novamente');
+    i18n.setLocale('en');
+    expect(i18n.t('common.back')).to.equal('Back');
+    expect(i18n.t('common.try_again')).to.equal('Try again');
+  });
+
 });
