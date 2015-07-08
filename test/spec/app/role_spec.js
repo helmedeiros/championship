@@ -40,4 +40,18 @@ describe('app/role', function () {
     expect(role.DEFAULT).to.equal('user');
   });
 
+  it('isAdmin é false após clear', function () {
+    var s = fakeStorage();
+    role.set('admin', { storage: s });
+    expect(role.isAdmin({ storage: s })).to.equal(true);
+    role.clear({ storage: s });
+    expect(role.isAdmin({ storage: s })).to.equal(false);
+  });
+
+  it('valores inválidos no storage caem no default', function () {
+    var s = fakeStorage();
+    s.setItem('championship:role', 'superuser');
+    expect(role.current({ storage: s })).to.equal('user');
+  });
+
 });
