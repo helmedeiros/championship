@@ -128,6 +128,21 @@ test/
   helpers/       infra de testes (dom + chai globals)
 ```
 
+## Acessibilidade e idiomas
+
+A interface tem suporte básico para leitores de tela e navegação por teclado:
+
+- `role="main"`, `role="alert"` e `aria-live="polite"` nos containers principais
+- `aria-label` em botões de ação do scorer e do modo admin
+- Skip link "Pular para o conteúdo" oculto até receber foco
+- Empty states com `role="status"` para anúncio automático
+- Folha de estilo `@media print` esconde controles e prioriza tabelas
+
+O seletor de idioma na home alterna entre **pt-br** (padrão) e **en**. A escolha
+é persistida em `localStorage` na chave `championship:locale`. Novas chaves
+podem ser adicionadas em `src/i18n/messages_pt_br.js` e
+`src/i18n/messages_en.js`.
+
 ## Licença
 
 MIT — veja `LICENSE`.
