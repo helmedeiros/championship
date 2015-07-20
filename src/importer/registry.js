@@ -15,6 +15,11 @@ module.exports = (function () {
       id:     'brasileirao-2014',
       label:  'Brasileirão Série A 2014',
       load:   function () { return require('../data/brasileirao_2014'); }
+    },
+    {
+      id:     'copa-america-2015',
+      label:  'Copa América 2015',
+      load:   function () { return require('../data/copa_america_2015'); }
     }
   ];
 
