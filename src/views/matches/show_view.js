@@ -9,6 +9,7 @@ module.exports = (function () {
   var BaseModel = require('../../persistence/base_model');
   var crossTab = require('../../live/cross_tab');
   var replay = require('../../live/replay');
+  var shareEncode = require('../../share/encode');
 
   return Marionette.LayoutView.extend({
 
@@ -26,7 +27,11 @@ module.exports = (function () {
           '<button class="btn btn-sm btn-info match-replay" ' +
             'data-speed="4">Reviver (4×)</button> ' +
           '<button class="btn btn-sm btn-info match-replay" ' +
-            'data-speed="16">Reviver (16×)</button>' +
+            'data-speed="16">Reviver (16×)</button> ' +
+          '<button class="btn btn-sm btn-default match-share" ' +
+            'aria-label="Copiar link de compartilhamento desta partida">' +
+            'Copiar link' +
+          '</button>' +
         '</div>' +
         '<ul class="nav nav-tabs match-tabs">' +
           '<li class="active" data-tab="timeline"><a href="#">Linha do tempo</a></li>' +
@@ -61,7 +66,8 @@ module.exports = (function () {
 
     events: {
       'click .match-tabs li': 'onTabClick',
-      'click .match-replay':  'onReplay'
+      'click .match-replay':  'onReplay',
+      'click .match-share':   'onShare'
     },
 
     initialize: function (options) {
@@ -101,6 +107,21 @@ module.exports = (function () {
       this.$('.match-tabs li[data-tab="' + tab + '"]').addClass('active');
       this.$('.tab-pane').hide().removeClass('active');
       this.$('.tab-pane[data-pane="' + tab + '"]').show().addClass('active');
+    },
+
+    onShare: function (e) {
+      if (e && e.preventDefault) { e.preventDefault(); }
+      var snapshot = {
+        match: this.model.toJSON(),
+        events: this.matchEvents.toJSON()
+      };
+      var token = shareEncode.encode(snapshot);
+      var win = typeof window !== 'undefined' ? window : null;
+      if (!win || !win.location) { return; }
+      var base = win.location.origin + win.location.pathname;
+      var url = base + '#/partidas/compartilhada/' + token;
+      this.trigger('match:share', url);
+      try { win.prompt('Link para compartilhar:', url); } catch (err) {}
     },
 
     onReplay: function (e) {
