@@ -23,6 +23,8 @@ module.exports = (function () {
   var AdminSetupView = require('../views/admin_setup_view');
   var role = require('./role');
   var BaseModel = require('../persistence/base_model');
+  var MatchEvents = require('../collections/match_events');
+  var shareEncode = require('../share/encode');
 
   var SEED_TEAMS = [
     { id: 'sao', name: 'São Paulo',   short: 'SAO',
@@ -204,6 +206,18 @@ module.exports = (function () {
       var match = new Match({ id: id });
       match.fetch();
       app.getRegion('mainRegion').show(new MatchShowView({ model: match }));
+    };
+    controller.matchShared = function (token) {
+      var payload;
+      try { payload = shareEncode.decode(token); } catch (err) {
+        if (flash) { flash('Link inválido ou expirado.', 'warning'); }
+        return;
+      }
+      var match = new Match(payload.match || {});
+      var events = new MatchEvents(payload.events || []);
+      app.getRegion('mainRegion').show(
+        new MatchShowView({ model: match, matchEvents: events })
+      );
     };
     controller['admin.scoreboard'] = function (id) {
       var match = new Match({ id: id });

@@ -9,6 +9,7 @@ module.exports = (function () {
       'campeonatos/:id':        'championshipsShow',
       'partidas':               'matchesList',
       'partidas/:id':           'matchShow',
+      'partidas/compartilhada/:token': 'matchShared',
       'times':                  'teamsList',
       'times/:id':              'teamsShow',
       'h2h/:teamA/:teamB':      'h2hShow',
