@@ -24176,6 +24176,7 @@ module.exports = (function () {
       'campeonatos/:id':        'championshipsShow',
       'partidas':               'matchesList',
       'partidas/:id':           'matchShow',
+      'partidas/compartilhada/:token': 'matchShared',
       'times':                  'teamsList',
       'times/:id':              'teamsShow',
       'h2h/:teamA/:teamB':      'h2hShow',
@@ -24245,6 +24246,8 @@ module.exports = (function () {
   var AdminSetupView = require('../views/admin_setup_view');
   var role = require('./role');
   var BaseModel = require('../persistence/base_model');
+  var MatchEvents = require('../collections/match_events');
+  var shareEncode = require('../share/encode');
 
   var SEED_TEAMS = [
     { id: 'sao', name: 'São Paulo',   short: 'SAO',
@@ -24427,6 +24430,18 @@ module.exports = (function () {
       match.fetch();
       app.getRegion('mainRegion').show(new MatchShowView({ model: match }));
     };
+    controller.matchShared = function (token) {
+      var payload;
+      try { payload = shareEncode.decode(token); } catch (err) {
+        if (flash) { flash('Link inválido ou expirado.', 'warning'); }
+        return;
+      }
+      var match = new Match(payload.match || {});
+      var events = new MatchEvents(payload.events || []);
+      app.getRegion('mainRegion').show(
+        new MatchShowView({ model: match, matchEvents: events })
+      );
+    };
     controller['admin.scoreboard'] = function (id) {
       var match = new Match({ id: id });
       match.fetch();
@@ -24468,7 +24483,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":106,"../collections/matches":108,"../collections/teams":109,"../models/championship":123,"../models/match":124,"../models/team":130,"../persistence/base_model":132,"../views/admin_setup_view":146,"../views/championships/form_view":149,"../views/championships/list_view":150,"../views/championships/show_view":152,"../views/home_view":158,"../views/importer_view":159,"../views/matches/list_view":163,"../views/matches/scorer_view":166,"../views/matches/show_view":167,"../views/stats/head_to_head_view":172,"../views/teams/form_view":176,"../views/teams/list_view":178,"../views/teams/profile_view":179,"./role":100,"./router":101}],104:[function(require,module,exports){
+},{"../collections/championships":106,"../collections/match_events":107,"../collections/matches":108,"../collections/teams":109,"../models/championship":123,"../models/match":124,"../models/team":130,"../persistence/base_model":132,"../share/encode":140,"../views/admin_setup_view":146,"../views/championships/form_view":149,"../views/championships/list_view":150,"../views/championships/show_view":152,"../views/home_view":158,"../views/importer_view":159,"../views/matches/list_view":163,"../views/matches/scorer_view":166,"../views/matches/show_view":167,"../views/stats/head_to_head_view":172,"../views/teams/form_view":176,"../views/teams/list_view":178,"../views/teams/profile_view":179,"./role":100,"./router":101}],104:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
