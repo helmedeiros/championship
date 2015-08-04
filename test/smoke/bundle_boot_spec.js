@@ -308,6 +308,50 @@ describe('smoke/bundle', function () {
     }, 300);
   });
 
+  it('rota partidas/compartilhada/:token renderiza a partida do link',
+    function (done) {
+      // payload pré-encodado: BRA 1x7 GER + 2 eventos.
+      // gerado por share/encode.encode no Node.
+      var encode = require('../../src/share/encode');
+      var payload = {
+        match: {
+          id: 'shared-bra-ger',
+          home: 'BRA', away: 'GER',
+          homeScore: 1, awayScore: 7,
+          status: 'finished',
+          kickoff: '2014-07-08T21:00:00Z'
+        },
+        events: [
+          { type: 'goal', minute: 11, half: 1, player: 'Müller' },
+          { type: 'goal', minute: 23, half: 1, player: 'Klose' }
+        ]
+      };
+      var token = encode.encode(payload);
+      var bundle = fs.readFileSync(BUNDLE, 'utf8');
+      var html = '<!DOCTYPE html><html><body>' +
+        '<div id="regiao-navegacao"></div>' +
+        '<div id="regiao-mensagens"></div>' +
+        '<div id="regiao-principal"><h1>Carregando&hellip;</h1></div>' +
+        '</body></html>';
+      var doc = jsdom.jsdom(html, {
+        url: 'http://localhost/#/partidas/compartilhada/' + token
+      });
+      var win = doc.defaultView;
+      polyfillLocalStorage(win);
+      try { win.eval(bundle); } catch (err) { return done(err); }
+      setTimeout(function () {
+        try {
+          var region = doc.getElementById('regiao-principal');
+          var content = region.innerHTML;
+          expect(content, 'região não deveria continuar em Carregando')
+            .to.not.match(/Carregando/);
+          expect(content, 'BRA deveria aparecer no header').to.match(/BRA/);
+          expect(content, 'GER deveria aparecer no header').to.match(/GER/);
+          done();
+        } catch (a) { done(a); }
+      }, 400);
+    });
+
   it('admin gate redireciona usuário não-admin para /admin/setup', function (done) {
     var bundle = fs.readFileSync(BUNDLE, 'utf8');
     var html = '<!DOCTYPE html><html><body>' +
