@@ -128,6 +128,27 @@ test/
   helpers/       infra de testes (dom + chai globals)
 ```
 
+## Compartilhar partida por link
+
+Na página `#/partidas/:id` o botão **Copiar link** gera um endereço auto-
+contido com o snapshot da partida e seus eventos codificados em base64
+url-safe no próprio hash. O link tem o formato
+`#/partidas/compartilhada/<token>` e abre normalmente em qualquer outro
+navegador — não depende do `localStorage` da pessoa que recebe. Útil para
+mandar um placar histórico ou um replay para alguém ver no celular.
+
+A codificação acontece em `src/share/encode.js` (sem dependências externas).
+O decoder é o mesmo módulo, usado pelo controller `matchShared` em
+`src/app/wire_routes.js`.
+
+## Bookmarklet "abrir scoreboard"
+
+Para narradores que querem virar admin com 1 clique enquanto estão na
+página da partida, há um bookmarklet em `src/share/bookmarklet.js`. Crie um
+favorito com a URL devolvida por `bookmarklet.url()` e, estando em
+`#/partidas/:id` (ou `compartilhada/:token`), clique no favorito: ele
+marca `championship:role = 'admin'` e leva para o scoreboard da partida.
+
 ## Acessibilidade e idiomas
 
 A interface tem suporte básico para leitores de tela e navegação por teclado:
