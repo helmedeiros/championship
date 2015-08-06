@@ -66,6 +66,9 @@ aplicação em poucos cliques:
   Alemanha e da final Alemanha 1×0 Argentina.
 - **Brasileirão Série A 2014** — 20 clubes com seus estádios, e uma seleção
   de 15 partidas marcantes (rodada 38 completa + clássicos do ano).
+- **Copa América 2015** — 12 seleções, 26 partidas cobrindo toda a fase de
+  grupos (18 jogos) mais quartas, semis, disputa de 3º e a final entre
+  Chile e Argentina, decidida nos pênaltis com o Chile campeão.
 
 Cada fixture é validado contra um JSON Schema (`src/importer/schema.js`)
 via Ajv 0.6 antes de tocar o `localStorage`. A reimportação do mesmo
