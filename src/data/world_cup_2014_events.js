@@ -66,6 +66,64 @@ module.exports = (function () {
         text: '1x3 Croácia' }
     ],
 
+    // ===== Grupo B =====
+    'ESP-NED-2014-06-13': [
+      { type: 'goal',   half: 1, minute: 27, player: 'Xabi Alonso',
+        text: '1x0 Espanha — pênalti' },
+      { type: 'goal',   half: 1, minute: 44, player: 'Van Persie',
+        text: '1x1 Holanda — voadora histórica' },
+      { type: 'goal',   half: 2, minute:  8, player: 'Robben',
+        text: '1x2 Holanda' },
+      { type: 'goal',   half: 2, minute: 19, player: 'De Vrij',
+        text: '1x3 Holanda' },
+      { type: 'goal',   half: 2, minute: 27, player: 'Van Persie',
+        text: '1x4 Holanda' },
+      { type: 'goal',   half: 2, minute: 35, player: 'Robben',
+        text: '1x5 Holanda — humilhação dos atuais campeões' }
+    ],
+    'CHI-AUS-2014-06-13': [
+      { type: 'goal',   half: 1, minute: 12, player: 'Sánchez',
+        text: '1x0 Chile' },
+      { type: 'goal',   half: 1, minute: 14, player: 'Valdivia',
+        text: '2x0 Chile' },
+      { type: 'goal',   half: 1, minute: 35, player: 'Cahill',
+        text: '2x1 Austrália' },
+      { type: 'goal',   half: 2, minute: 47, player: 'Beausejour',
+        text: '3x1 Chile' }
+    ],
+    'AUS-NED-2014-06-18': [
+      { type: 'goal',   half: 1, minute: 20, player: 'Robben',
+        text: '0x1 Holanda' },
+      { type: 'goal',   half: 1, minute: 21, player: 'Cahill',
+        text: '1x1 Austrália — pintura' },
+      { type: 'goal',   half: 2, minute:  9, player: 'Jedinak',
+        text: '2x1 Austrália — pênalti' },
+      { type: 'goal',   half: 2, minute: 13, player: 'Van Persie',
+        text: '2x2 Holanda' },
+      { type: 'goal',   half: 2, minute: 23, player: 'Depay',
+        text: '2x3 Holanda' }
+    ],
+    'ESP-CHI-2014-06-18': [
+      { type: 'goal',   half: 1, minute: 20, player: 'Vargas',
+        text: '0x1 Chile' },
+      { type: 'goal',   half: 1, minute: 43, player: 'Aránguiz',
+        text: '0x2 Chile — Espanha eliminada' }
+    ],
+    'AUS-ESP-2014-06-23': [
+      { type: 'goal',   half: 1, minute: 36, player: 'Villa',
+        text: '0x1 Espanha' },
+      { type: 'goal',   half: 2, minute: 24, player: 'Torres',
+        text: '0x2 Espanha' },
+      { type: 'goal',   half: 2, minute: 37, player: 'Mata',
+        text: '0x3 Espanha' }
+    ],
+    'NED-CHI-2014-06-23': [
+      { type: 'goal',   half: 2, minute: 32, player: 'Fer',
+        text: '1x0 Holanda' },
+      { type: 'goal',   half: 2, minute: 47, player: 'Depay',
+        text: '2x0 Holanda' }
+    ],
+
     // ===== Semifinal — Brasil 1×7 Alemanha =====
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
