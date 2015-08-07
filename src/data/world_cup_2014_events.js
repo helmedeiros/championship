@@ -8,6 +8,64 @@ module.exports = (function () {
 
   return {
 
+    // ===== Grupo A =====
+    'BRA-CRO-2014-06-12': [
+      { type: 'goal',   half: 1, minute: 11, player: 'Marcelo (CT)',
+        text: '0x1 — gol contra de Marcelo abre a Copa' },
+      { type: 'yellow', half: 1, minute: 27, player: 'Neymar' },
+      { type: 'goal',   half: 1, minute: 29, player: 'Neymar',
+        text: '1x1 Brasil' },
+      { type: 'goal',   half: 2, minute: 26, player: 'Neymar',
+        text: '2x1 Brasil — pênalti' },
+      { type: 'goal',   half: 2, minute: 46, player: 'Oscar',
+        text: '3x1 Brasil — fecha o placar' }
+    ],
+    'MEX-CMR-2014-06-13': [
+      { type: 'yellow', half: 1, minute: 36, player: 'Assou-Ekotto' },
+      { type: 'goal',   half: 2, minute: 16, player: 'Peralta',
+        text: '1x0 México' }
+    ],
+    'BRA-MEX-2014-06-17': [
+      { type: 'yellow', half: 1, minute: 25, player: 'Rafael Márquez' },
+      { type: 'yellow', half: 2, minute: 25, player: 'Hulk' },
+      { type: 'comment', half: 2, minute: 35,
+        text: 'Ochoa faz defesas espetaculares e garante o empate' }
+    ],
+    'CMR-CRO-2014-06-18': [
+      { type: 'goal',   half: 1, minute: 11, player: 'Olić',
+        text: '0x1 Croácia' },
+      { type: 'red',    half: 1, minute: 40, player: 'Alex Song',
+        text: 'Cotovelada em Mandžukić' },
+      { type: 'goal',   half: 2, minute:  3, player: 'Perišić',
+        text: '0x2 Croácia' },
+      { type: 'goal',   half: 2, minute: 16, player: 'Mandžukić',
+        text: '0x3 Croácia' },
+      { type: 'goal',   half: 2, minute: 28, player: 'Mandžukić',
+        text: '0x4 Croácia' }
+    ],
+    'CMR-BRA-2014-06-23': [
+      { type: 'goal',   half: 1, minute: 17, player: 'Neymar',
+        text: '0x1 Brasil' },
+      { type: 'goal',   half: 1, minute: 26, player: 'Matip',
+        text: '1x1 Camarões' },
+      { type: 'goal',   half: 1, minute: 35, player: 'Neymar',
+        text: '1x2 Brasil' },
+      { type: 'goal',   half: 2, minute:  4, player: 'Fred',
+        text: '1x3 Brasil' },
+      { type: 'goal',   half: 2, minute: 39, player: 'Fernandinho',
+        text: '1x4 Brasil' }
+    ],
+    'CRO-MEX-2014-06-23': [
+      { type: 'goal',   half: 2, minute: 27, player: 'Rafael Márquez',
+        text: '0x1 México' },
+      { type: 'goal',   half: 2, minute: 30, player: 'Guardado',
+        text: '0x2 México' },
+      { type: 'goal',   half: 2, minute: 37, player: 'Hernández',
+        text: '0x3 México' },
+      { type: 'goal',   half: 2, minute: 42, player: 'Perišić',
+        text: '1x3 Croácia' }
+    ],
+
     // ===== Semifinal — Brasil 1×7 Alemanha =====
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
