@@ -176,6 +176,50 @@ module.exports = (function () {
         text: '2x1 Grécia — pênalti no fim, classifica' }
     ],
 
+    // ===== Grupo D =====
+    'URU-CRC-2014-06-14': [
+      { type: 'goal',   half: 1, minute: 24, player: 'Cavani',
+        text: '1x0 Uruguai — pênalti' },
+      { type: 'goal',   half: 2, minute:  9, player: 'Joel Campbell',
+        text: '1x1 Costa Rica' },
+      { type: 'goal',   half: 2, minute: 12, player: 'Duarte',
+        text: '1x2 Costa Rica' },
+      { type: 'goal',   half: 2, minute: 39, player: 'Ureña',
+        text: '1x3 Costa Rica — virada histórica' }
+    ],
+    'ENG-ITA-2014-06-14': [
+      { type: 'goal',   half: 1, minute: 35, player: 'Marchisio',
+        text: '0x1 Itália' },
+      { type: 'goal',   half: 1, minute: 37, player: 'Sturridge',
+        text: '1x1 Inglaterra' },
+      { type: 'goal',   half: 2, minute:  5, player: 'Balotelli',
+        text: '1x2 Itália' }
+    ],
+    'URU-ENG-2014-06-19': [
+      { type: 'goal',   half: 1, minute: 39, player: 'Suárez',
+        text: '1x0 Uruguai' },
+      { type: 'goal',   half: 2, minute: 30, player: 'Rooney',
+        text: '1x1 Inglaterra' },
+      { type: 'goal',   half: 2, minute: 40, player: 'Suárez',
+        text: '2x1 Uruguai' }
+    ],
+    'ITA-CRC-2014-06-20': [
+      { type: 'goal',   half: 1, minute: 44, player: 'Bryan Ruiz',
+        text: '0x1 Costa Rica — vitória dos ticos sobre o vice 2010' }
+    ],
+    'ITA-URU-2014-06-24': [
+      { type: 'red',    half: 1, minute: 59, player: 'Marchisio' },
+      { type: 'comment', half: 2, minute: 34,
+        text: 'Suárez morde Chiellini — mordida que rendeu suspensão de 9 jogos' },
+      { type: 'goal',   half: 2, minute: 36, player: 'Godín',
+        text: '0x1 Uruguai — Itália eliminada' }
+    ],
+    'CRC-ENG-2014-06-24': [
+      { type: 'yellow', half: 2, minute: 38, player: 'Lallana' },
+      { type: 'comment', half: 2, minute: 47,
+        text: 'Inglaterra termina sem vitórias; Costa Rica passa em 1º' }
+    ],
+
     // ===== Semifinal — Brasil 1×7 Alemanha =====
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
