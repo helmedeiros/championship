@@ -124,6 +124,58 @@ module.exports = (function () {
         text: '2x0 Holanda' }
     ],
 
+    // ===== Grupo C =====
+    'COL-GRE-2014-06-14': [
+      { type: 'goal',   half: 1, minute:  5, player: 'Armero',
+        text: '1x0 Colômbia' },
+      { type: 'goal',   half: 2, minute: 13, player: 'Gutiérrez',
+        text: '2x0 Colômbia' },
+      { type: 'goal',   half: 2, minute: 48, player: 'James Rodríguez',
+        text: '3x0 Colômbia' }
+    ],
+    'CIV-JPN-2014-06-14': [
+      { type: 'goal',   half: 1, minute: 16, player: 'Honda',
+        text: '0x1 Japão' },
+      { type: 'goal',   half: 2, minute: 19, player: 'Bony',
+        text: '1x1 Costa do Marfim' },
+      { type: 'goal',   half: 2, minute: 21, player: 'Gervinho',
+        text: '2x1 Costa do Marfim' }
+    ],
+    'COL-CIV-2014-06-19': [
+      { type: 'goal',   half: 2, minute: 19, player: 'James Rodríguez',
+        text: '1x0 Colômbia' },
+      { type: 'goal',   half: 2, minute: 25, player: 'Quintero',
+        text: '2x0 Colômbia' },
+      { type: 'goal',   half: 2, minute: 28, player: 'Gervinho',
+        text: '2x1 Costa do Marfim' }
+    ],
+    'JPN-GRE-2014-06-19': [
+      { type: 'red',    half: 1, minute: 38, player: 'Katsouranis',
+        text: '2º amarelo' },
+      { type: 'comment', half: 2, minute: 20,
+        text: 'Japão pressiona com 11x10 mas Grécia se fecha' }
+    ],
+    'COL-JPN-2014-06-24': [
+      { type: 'goal',   half: 1, minute: 17, player: 'James Rodríguez',
+        text: '1x0 Colômbia' },
+      { type: 'goal',   half: 1, minute: 45, player: 'Okazaki',
+        text: '1x1 Japão' },
+      { type: 'goal',   half: 2, minute: 10, player: 'Jackson Martínez',
+        text: '2x1 Colômbia' },
+      { type: 'goal',   half: 2, minute: 37, player: 'James Rodríguez',
+        text: '3x1 Colômbia' },
+      { type: 'goal',   half: 2, minute: 45, player: 'Jackson Martínez',
+        text: '4x1 Colômbia' }
+    ],
+    'GRE-CIV-2014-06-24': [
+      { type: 'goal',   half: 1, minute: 42, player: 'Samaras',
+        text: '1x0 Grécia' },
+      { type: 'goal',   half: 2, minute: 29, player: 'Bony',
+        text: '1x1 Costa do Marfim' },
+      { type: 'goal',   half: 2, minute: 48, player: 'Samaras',
+        text: '2x1 Grécia — pênalti no fim, classifica' }
+    ],
+
     // ===== Semifinal — Brasil 1×7 Alemanha =====
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
