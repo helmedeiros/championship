@@ -321,6 +321,60 @@ module.exports = (function () {
         text: '3x1 Bósnia — única vitória bósnia em Copas' }
     ],
 
+    // ===== Grupo G =====
+    'GER-POR-2014-06-16': [
+      { type: 'goal',   half: 1, minute: 12, player: 'Müller',
+        text: '1x0 Alemanha — pênalti' },
+      { type: 'goal',   half: 1, minute: 32, player: 'Hummels',
+        text: '2x0 Alemanha' },
+      { type: 'red',    half: 1, minute: 37, player: 'Pepe',
+        text: 'Cabeçada em Müller' },
+      { type: 'goal',   half: 1, minute: 46, player: 'Müller',
+        text: '3x0 Alemanha' },
+      { type: 'goal',   half: 2, minute: 33, player: 'Müller',
+        text: '4x0 Alemanha — hat-trick' }
+    ],
+    'GHA-USA-2014-06-16': [
+      { type: 'goal',   half: 1, minute:  1, player: 'Dempsey',
+        text: '0x1 EUA' },
+      { type: 'goal',   half: 2, minute: 37, player: 'André Ayew',
+        text: '1x1 Gana' },
+      { type: 'goal',   half: 2, minute: 41, player: 'Brooks',
+        text: '1x2 EUA' }
+    ],
+    'GER-GHA-2014-06-21': [
+      { type: 'goal',   half: 2, minute:  6, player: 'Götze',
+        text: '1x0 Alemanha' },
+      { type: 'goal',   half: 2, minute:  9, player: 'André Ayew',
+        text: '1x1 Gana' },
+      { type: 'goal',   half: 2, minute: 18, player: 'Asamoah Gyan',
+        text: '1x2 Gana' },
+      { type: 'goal',   half: 2, minute: 26, player: 'Klose',
+        text: '2x2 Alemanha — Klose iguala Ronaldo' }
+    ],
+    'USA-POR-2014-06-22': [
+      { type: 'goal',   half: 1, minute:  5, player: 'Nani',
+        text: '0x1 Portugal' },
+      { type: 'goal',   half: 2, minute: 19, player: 'Jermaine Jones',
+        text: '1x1 EUA' },
+      { type: 'goal',   half: 2, minute: 36, player: 'Dempsey',
+        text: '2x1 EUA' },
+      { type: 'goal',   half: 2, minute: 50, player: 'Varela',
+        text: '2x2 Portugal — empate no apagar das luzes' }
+    ],
+    'USA-GER-2014-06-26': [
+      { type: 'goal',   half: 2, minute: 10, player: 'Müller',
+        text: '0x1 Alemanha' }
+    ],
+    'POR-GHA-2014-06-26': [
+      { type: 'goal',   half: 1, minute: 31, player: 'John Boye (CT)',
+        text: '1x0 Portugal — gol contra' },
+      { type: 'goal',   half: 2, minute: 12, player: 'Asamoah Gyan',
+        text: '1x1 Gana' },
+      { type: 'goal',   half: 2, minute: 35, player: 'Cristiano Ronaldo',
+        text: '2x1 Portugal — único gol de CR7 na Copa' }
+    ],
+
     // ===== Semifinal — Brasil 1×7 Alemanha =====
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
