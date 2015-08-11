@@ -220,6 +220,62 @@ module.exports = (function () {
         text: 'Inglaterra termina sem vitórias; Costa Rica passa em 1º' }
     ],
 
+    // ===== Grupo E =====
+    'SUI-ECU-2014-06-15': [
+      { type: 'goal',   half: 1, minute: 22, player: 'Enner Valencia',
+        text: '0x1 Equador' },
+      { type: 'goal',   half: 2, minute:  3, player: 'Mehmedi',
+        text: '1x1 Suíça' },
+      { type: 'goal',   half: 2, minute: 48, player: 'Seferović',
+        text: '2x1 Suíça — no último lance' }
+    ],
+    'FRA-HON-2014-06-15': [
+      { type: 'red',    half: 1, minute: 43, player: 'Palacios' },
+      { type: 'goal',   half: 1, minute: 45, player: 'Benzema',
+        text: '1x0 França — pênalti' },
+      { type: 'goal',   half: 2, minute:  3, player: 'Valladares (CT)',
+        text: '2x0 França' },
+      { type: 'goal',   half: 2, minute: 27, player: 'Benzema',
+        text: '3x0 França' }
+    ],
+    'SUI-FRA-2014-06-20': [
+      { type: 'goal',   half: 1, minute: 17, player: 'Giroud',
+        text: '0x1 França' },
+      { type: 'goal',   half: 1, minute: 18, player: 'Matuidi',
+        text: '0x2 França' },
+      { type: 'goal',   half: 1, minute: 40, player: 'Valbuena',
+        text: '0x3 França' },
+      { type: 'goal',   half: 2, minute: 22, player: 'Sissoko',
+        text: '0x4 França' },
+      { type: 'goal',   half: 2, minute: 36, player: 'Džemaili',
+        text: '1x4 Suíça' },
+      { type: 'goal',   half: 2, minute: 39, player: 'Benzema',
+        text: '1x5 França' },
+      { type: 'goal',   half: 2, minute: 42, player: 'Xhaka',
+        text: '2x5 Suíça' }
+    ],
+    'HON-ECU-2014-06-20': [
+      { type: 'goal',   half: 1, minute: 31, player: 'Costly',
+        text: '1x0 Honduras' },
+      { type: 'goal',   half: 1, minute: 34, player: 'Enner Valencia',
+        text: '1x1 Equador' },
+      { type: 'goal',   half: 2, minute: 20, player: 'Enner Valencia',
+        text: '1x2 Equador' }
+    ],
+    'HON-SUI-2014-06-25': [
+      { type: 'goal',   half: 1, minute:  6, player: 'Shaqiri',
+        text: '0x1 Suíça' },
+      { type: 'goal',   half: 1, minute: 31, player: 'Shaqiri',
+        text: '0x2 Suíça' },
+      { type: 'goal',   half: 2, minute: 26, player: 'Shaqiri',
+        text: '0x3 Suíça — hat-trick e classificação' }
+    ],
+    'ECU-FRA-2014-06-25': [
+      { type: 'red',    half: 1, minute: 50, player: 'Antonio Valencia' },
+      { type: 'comment', half: 2, minute: 47,
+        text: 'França passa em 1º; Equador eliminado' }
+    ],
+
     // ===== Semifinal — Brasil 1×7 Alemanha =====
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
