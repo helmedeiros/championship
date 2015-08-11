@@ -25377,6 +25377,51 @@ module.exports = (function () {
         text: 'França passa em 1º; Equador eliminado' }
     ],
 
+    // ===== Grupo F =====
+    'ARG-BIH-2014-06-15': [
+      { type: 'goal',   half: 1, minute:  3, player: 'Kolasinac (CT)',
+        text: '1x0 Argentina — gol contra cedo' },
+      { type: 'goal',   half: 2, minute: 20, player: 'Messi',
+        text: '2x0 Argentina — golaço' },
+      { type: 'goal',   half: 2, minute: 40, player: 'Ibišević',
+        text: '2x1 Bósnia' }
+    ],
+    'IRN-NGA-2014-06-16': [
+      { type: 'yellow', half: 1, minute: 27, player: 'Pouladi' },
+      { type: 'comment', half: 2, minute: 47,
+        text: 'Jogo travado; primeiro 0x0 da Copa' }
+    ],
+    'ARG-IRN-2014-06-21': [
+      { type: 'goal',   half: 2, minute: 46, player: 'Messi',
+        text: '1x0 Argentina — pintura no apagar das luzes' }
+    ],
+    'NGA-BIH-2014-06-21': [
+      { type: 'goal',   half: 1, minute: 29, player: 'Odemwingie',
+        text: '1x0 Nigéria' }
+    ],
+    'NGA-ARG-2014-06-25': [
+      { type: 'goal',   half: 1, minute:  3, player: 'Messi',
+        text: '0x1 Argentina' },
+      { type: 'goal',   half: 1, minute:  4, player: 'Musa',
+        text: '1x1 Nigéria' },
+      { type: 'goal',   half: 1, minute: 46, player: 'Messi',
+        text: '1x2 Argentina' },
+      { type: 'goal',   half: 2, minute:  2, player: 'Musa',
+        text: '2x2 Nigéria' },
+      { type: 'goal',   half: 2, minute:  5, player: 'Rojo',
+        text: '2x3 Argentina' }
+    ],
+    'BIH-IRN-2014-06-25': [
+      { type: 'goal',   half: 1, minute: 23, player: 'Džeko',
+        text: '1x0 Bósnia' },
+      { type: 'goal',   half: 2, minute: 14, player: 'Pjanić',
+        text: '2x0 Bósnia' },
+      { type: 'goal',   half: 2, minute: 37, player: 'Ghoochannejhad',
+        text: '2x1 Irã' },
+      { type: 'goal',   half: 2, minute: 38, player: 'Vršajević',
+        text: '3x1 Bósnia — única vitória bósnia em Copas' }
+    ],
+
     // ===== Semifinal — Brasil 1×7 Alemanha =====
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
