@@ -375,6 +375,51 @@ module.exports = (function () {
         text: '2x1 Portugal — único gol de CR7 na Copa' }
     ],
 
+    // ===== Grupo H =====
+    'BEL-ALG-2014-06-17': [
+      { type: 'goal',   half: 1, minute: 24, player: 'Feghouli',
+        text: '0x1 Argélia — pênalti' },
+      { type: 'goal',   half: 2, minute: 25, player: 'Fellaini',
+        text: '1x1 Bélgica' },
+      { type: 'goal',   half: 2, minute: 35, player: 'Mertens',
+        text: '2x1 Bélgica' }
+    ],
+    'RUS-KOR-2014-06-17': [
+      { type: 'goal',   half: 2, minute: 23, player: 'Lee Keun-Ho',
+        text: '0x1 Coreia do Sul' },
+      { type: 'goal',   half: 2, minute: 29, player: 'Kerzhakov',
+        text: '1x1 Rússia' }
+    ],
+    'BEL-RUS-2014-06-22': [
+      { type: 'goal',   half: 2, minute: 43, player: 'Origi',
+        text: '1x0 Bélgica — no fim, classifica' }
+    ],
+    'KOR-ALG-2014-06-22': [
+      { type: 'goal',   half: 1, minute: 26, player: 'Slimani',
+        text: '0x1 Argélia' },
+      { type: 'goal',   half: 1, minute: 28, player: 'Halliche',
+        text: '0x2 Argélia' },
+      { type: 'goal',   half: 1, minute: 38, player: 'Djabou',
+        text: '0x3 Argélia' },
+      { type: 'goal',   half: 2, minute:  5, player: 'Son Heung-min',
+        text: '1x3 Coreia' },
+      { type: 'goal',   half: 2, minute: 17, player: 'Yacine Brahimi',
+        text: '1x4 Argélia' },
+      { type: 'goal',   half: 2, minute: 27, player: 'Koo Ja-cheol',
+        text: '2x4 Coreia' }
+    ],
+    'KOR-BEL-2014-06-26': [
+      { type: 'red',    half: 1, minute: 46, player: 'Steven Defour' },
+      { type: 'goal',   half: 2, minute: 33, player: 'Vertonghen',
+        text: '0x1 Bélgica — 100% de aproveitamento' }
+    ],
+    'ALG-RUS-2014-06-26': [
+      { type: 'goal',   half: 1, minute:  6, player: 'Kokorin',
+        text: '0x1 Rússia' },
+      { type: 'goal',   half: 2, minute: 15, player: 'Slimani',
+        text: '1x1 Argélia — passa à segunda fase' }
+    ],
+
     // ===== Semifinal — Brasil 1×7 Alemanha =====
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
