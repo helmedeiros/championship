@@ -25521,6 +25521,67 @@ module.exports = (function () {
         text: '1x1 Argélia — passa à segunda fase' }
     ],
 
+    // ===== Oitavas de Final =====
+    'BRA-CHI-2014-06-28': [
+      { type: 'goal',   half: 1, minute: 18, player: 'David Luiz',
+        text: '1x0 Brasil' },
+      { type: 'goal',   half: 1, minute: 32, player: 'Sánchez',
+        text: '1x1 Chile' },
+      { type: 'comment', half: 4, minute: 30,
+        text: 'Pinilla bate na trave; Brasil vence nos pênaltis 3x2' }
+    ],
+    'COL-URU-2014-06-28': [
+      { type: 'goal',   half: 1, minute: 28, player: 'James Rodríguez',
+        text: '1x0 Colômbia — voleio histórico' },
+      { type: 'goal',   half: 2, minute:  5, player: 'James Rodríguez',
+        text: '2x0 Colômbia' }
+    ],
+    'NED-MEX-2014-06-29': [
+      { type: 'goal',   half: 2, minute:  3, player: 'Giovani dos Santos',
+        text: '0x1 México' },
+      { type: 'goal',   half: 2, minute: 43, player: 'Sneijder',
+        text: '1x1 Holanda' },
+      { type: 'goal',   half: 2, minute: 49, player: 'Huntelaar',
+        text: '2x1 Holanda — pênalti polêmico no fim' }
+    ],
+    'CRC-GRE-2014-06-29': [
+      { type: 'goal',   half: 2, minute:  7, player: 'Bryan Ruiz',
+        text: '1x0 Costa Rica' },
+      { type: 'red',    half: 2, minute: 21, player: 'Óscar Duarte' },
+      { type: 'goal',   half: 2, minute: 46, player: 'Papastathopoulos',
+        text: '1x1 Grécia — empate no apagar das luzes' },
+      { type: 'comment', half: 4, minute: 30,
+        text: 'Navas pega pênalti; Costa Rica vence 5x3 e vai às quartas' }
+    ],
+    'FRA-NGA-2014-06-30': [
+      { type: 'goal',   half: 2, minute: 34, player: 'Pogba',
+        text: '1x0 França' },
+      { type: 'goal',   half: 2, minute: 47, player: 'Yobo (CT)',
+        text: '2x0 França — gol contra' }
+    ],
+    'GER-ALG-2014-06-30': [
+      { type: 'goal',   half: 3, minute:  2, player: 'Schürrle',
+        text: '1x0 Alemanha — gol na prorrogação' },
+      { type: 'goal',   half: 4, minute: 30, player: 'Özil',
+        text: '2x0 Alemanha' },
+      { type: 'goal',   half: 4, minute: 31, player: 'Djabou',
+        text: '2x1 Argélia — no apagar das luzes' }
+    ],
+    'ARG-SUI-2014-07-01': [
+      { type: 'goal',   half: 3, minute: 28, player: 'Di María',
+        text: '1x0 Argentina — gol decisivo perto do fim da prorrogação' }
+    ],
+    'BEL-USA-2014-07-01': [
+      { type: 'comment', half: 2, minute: 45,
+        text: 'Tim Howard faz 16 defesas — recorde da Copa' },
+      { type: 'goal',   half: 3, minute:  3, player: 'De Bruyne',
+        text: '1x0 Bélgica' },
+      { type: 'goal',   half: 3, minute: 15, player: 'Lukaku',
+        text: '2x0 Bélgica' },
+      { type: 'goal',   half: 4, minute: 17, player: 'Julian Green',
+        text: '2x1 EUA' }
+    ],
+
     // ===== Semifinal — Brasil 1×7 Alemanha =====
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
