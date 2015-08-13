@@ -481,6 +481,30 @@ module.exports = (function () {
         text: '2x1 EUA' }
     ],
 
+    // ===== Quartas de Final =====
+    'FRA-GER-2014-07-04': [
+      { type: 'goal',   half: 1, minute: 13, player: 'Hummels',
+        text: '0x1 Alemanha — cabeçada' }
+    ],
+    'BRA-COL-2014-07-04': [
+      { type: 'goal',   half: 1, minute:  7, player: 'Thiago Silva',
+        text: '1x0 Brasil' },
+      { type: 'goal',   half: 2, minute: 24, player: 'David Luiz',
+        text: '2x0 Brasil — folha seca de fora da área' },
+      { type: 'goal',   half: 2, minute: 35, player: 'James Rodríguez',
+        text: '2x1 Colômbia — pênalti' },
+      { type: 'comment', half: 2, minute: 43,
+        text: 'Zúñiga acerta as costas de Neymar — joia brasileira sai chorando' }
+    ],
+    'ARG-BEL-2014-07-05': [
+      { type: 'goal',   half: 1, minute:  8, player: 'Higuaín',
+        text: '1x0 Argentina' }
+    ],
+    'NED-CRC-2014-07-05': [
+      { type: 'comment', half: 4, minute: 30,
+        text: 'Krul entra só para os pênaltis e defende dois; Holanda passa 4x3' }
+    ],
+
     // ===== Semifinal — Brasil 1×7 Alemanha =====
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
