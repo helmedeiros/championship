@@ -25629,6 +25629,27 @@ module.exports = (function () {
       { type: 'full_time', half: 2, minute: 47, text: 'Fim de jogo' }
     ],
 
+    // ===== Semifinal — Holanda 0×0 Argentina (4x2 nos pênaltis) =====
+    'NED-ARG-2014-07-09': [
+      { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
+      { type: 'half_time', half: 1, minute: 47, text: 'Intervalo' },
+      { type: 'comment',   half: 2, minute: 47,
+        text: 'Sem gols nos 90 minutos. Vai para a prorrogação.' },
+      { type: 'comment',   half: 4, minute: 30,
+        text: 'Romero brilha nos pênaltis e defende duas; Argentina vence 4x2' },
+      { type: 'full_time', half: 4, minute: 31, text: 'Argentina na final!' }
+    ],
+
+    // ===== Disputa de 3º — Brasil 0×3 Holanda =====
+    'BRA-NED-2014-07-12': [
+      { type: 'goal',   half: 1, minute:  3, player: 'Van Persie',
+        text: '0x1 Holanda — pênalti polêmico em Robben' },
+      { type: 'goal',   half: 1, minute: 17, player: 'Blind',
+        text: '0x2 Holanda' },
+      { type: 'goal',   half: 2, minute: 47, player: 'Wijnaldum',
+        text: '0x3 Holanda — fecha humilhação do anfitrião' }
+    ],
+
     // ===== Final — Alemanha 1×0 Argentina =====
     'GER-ARG-2014-07-13': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da final' },
