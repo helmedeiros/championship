@@ -25257,8 +25257,8 @@ module.exports = (function () {
         text: 'Japão pressiona com 11x10 mas Grécia se fecha' }
     ],
     'COL-JPN-2014-06-24': [
-      { type: 'goal',   half: 1, minute: 17, player: 'James Rodríguez',
-        text: '1x0 Colômbia' },
+      { type: 'goal',   half: 1, minute: 17, player: 'Cuadrado',
+        text: '1x0 Colômbia — pênalti' },
       { type: 'goal',   half: 1, minute: 45, player: 'Okazaki',
         text: '1x1 Japão' },
       { type: 'goal',   half: 2, minute: 10, player: 'Jackson Martínez',
