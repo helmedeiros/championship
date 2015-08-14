@@ -24483,7 +24483,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":106,"../collections/match_events":107,"../collections/matches":108,"../collections/teams":109,"../models/championship":124,"../models/match":125,"../models/team":131,"../persistence/base_model":133,"../share/encode":141,"../views/admin_setup_view":147,"../views/championships/form_view":150,"../views/championships/list_view":151,"../views/championships/show_view":153,"../views/home_view":159,"../views/importer_view":160,"../views/matches/list_view":164,"../views/matches/scorer_view":167,"../views/matches/show_view":168,"../views/stats/head_to_head_view":173,"../views/teams/form_view":177,"../views/teams/list_view":179,"../views/teams/profile_view":180,"./role":100,"./router":101}],104:[function(require,module,exports){
+},{"../collections/championships":106,"../collections/match_events":107,"../collections/matches":108,"../collections/teams":109,"../models/championship":125,"../models/match":126,"../models/team":132,"../persistence/base_model":134,"../share/encode":142,"../views/admin_setup_view":148,"../views/championships/form_view":151,"../views/championships/list_view":152,"../views/championships/show_view":154,"../views/home_view":160,"../views/importer_view":161,"../views/matches/list_view":165,"../views/matches/scorer_view":168,"../views/matches/show_view":169,"../views/stats/head_to_head_view":174,"../views/teams/form_view":178,"../views/teams/list_view":180,"../views/teams/profile_view":181,"./role":100,"./router":101}],104:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -24638,7 +24638,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/championship":124,"../persistence/base_collection":132}],107:[function(require,module,exports){
+},{"../models/championship":125,"../persistence/base_collection":133}],107:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -24672,7 +24672,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match_event":126,"../persistence/base_collection":132}],108:[function(require,module,exports){
+},{"../models/match_event":127,"../persistence/base_collection":133}],108:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -24733,7 +24733,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match":125,"../persistence/base_collection":132}],109:[function(require,module,exports){
+},{"../models/match":126,"../persistence/base_collection":133}],109:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -24746,13 +24746,23 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/team":131,"../persistence/base_collection":132}],110:[function(require,module,exports){
+},{"../models/team":132,"../persistence/base_collection":133}],110:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
   // Brasileirão Série A 2014 — 20 clubes em pontos corridos com ida e volta.
   // O campeão foi o Cruzeiro com 80 pontos. Aqui usamos um subconjunto das
   // partidas mais marcantes do campeonato para popular a tela rapidamente.
+
+  var EVENTS = require('./brasileirao_2014_events');
+
+  function attachEvents(list) {
+    list.forEach(function (m) {
+      var key = m.home + '-' + m.away + '-' + m.kickoff.slice(0, 10);
+      if (EVENTS[key]) { m.events = EVENTS[key]; }
+    });
+    return list;
+  }
 
   return {
     championship: {
@@ -24805,7 +24815,7 @@ module.exports = (function () {
       { id: 'CRI', name: 'Criciúma',       'short': 'CRI', city: 'Criciúma',
         stadium: 'Heriberto Hülse' }
     ],
-    matches: matchesBuild()
+    matches: attachEvents(matchesBuild())
   };
 
   function r(home, hs, as, away, meta) {
@@ -24843,7 +24853,153 @@ module.exports = (function () {
   }
 }());
 
-},{}],111:[function(require,module,exports){
+},{"./brasileirao_2014_events":111}],111:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
+  // Eventos do Brasileirão 2014 organizados por chave da partida.
+  // Chave = HOME-AWAY-YYYY-MM-DD. As escalações usadas são reais do
+  // elenco de 2014 (Borges/Júlio Baptista no Cruzeiro, Fred no Flu,
+  // Ricardo Oliveira no Santos, Guerrero no Corinthians, etc.); os
+  // minutos são aproximações para popular linha do tempo e artilharia.
+
+  return {
+
+    // ===== Rodada 38 (07/12/2014) =====
+    'CRI-CRU-2014-12-07': [
+      { type: 'goal',   half: 1, minute: 22, player: 'Borges',
+        text: '0x1 Cruzeiro — campeão tranquilo' },
+      { type: 'goal',   half: 2, minute: 17, player: 'Júlio Baptista',
+        text: '0x2 Cruzeiro' }
+    ],
+    'BAH-COR-2014-12-07': [
+      { type: 'goal',   half: 1, minute: 18, player: 'Élton',
+        text: '1x0 Bahia' },
+      { type: 'goal',   half: 2, minute:  4, player: 'Paolo Guerrero',
+        text: '1x1 Corinthians' },
+      { type: 'goal',   half: 2, minute: 31, player: 'Paolo Guerrero',
+        text: '1x2 Corinthians' }
+    ],
+    'PAL-SPT-2014-12-07': [
+      { type: 'goal',   half: 1, minute: 14, player: 'Henrique',
+        text: '1x0 Palmeiras' },
+      { type: 'goal',   half: 1, minute: 36, player: 'Wesley',
+        text: '2x0 Palmeiras' },
+      { type: 'goal',   half: 2, minute:  9, player: 'Cristaldo',
+        text: '3x0 Palmeiras' },
+      { type: 'goal',   half: 2, minute: 38, player: 'Mendieta',
+        text: '4x0 Palmeiras — goleada e segue na elite' }
+    ],
+    'SAO-SAN-2014-12-07': [
+      { type: 'goal',   half: 1, minute: 12, player: 'Ricardo Oliveira',
+        text: '0x1 Santos' },
+      { type: 'goal',   half: 1, minute: 41, player: 'Leandrinho',
+        text: '0x2 Santos' },
+      { type: 'goal',   half: 2, minute: 16, player: 'Ricardo Oliveira',
+        text: '0x3 Santos' },
+      { type: 'goal',   half: 2, minute: 38, player: 'Robinho',
+        text: '0x4 Santos' }
+    ],
+    'FLU-CAP-2014-12-07': [
+      { type: 'goal',   half: 1, minute:  9, player: 'Fred',
+        text: '1x0 Fluminense' },
+      { type: 'goal',   half: 1, minute: 31, player: 'Fred',
+        text: '2x0 Fluminense' },
+      { type: 'goal',   half: 1, minute: 44, player: 'Rafael Sóbis',
+        text: '3x0 Fluminense' },
+      { type: 'goal',   half: 2, minute: 20, player: 'Cícero',
+        text: '4x0 Fluminense' },
+      { type: 'goal',   half: 2, minute: 42, player: 'Fred',
+        text: '5x0 Fluminense — hat-trick' }
+    ],
+    'INT-CFC-2014-12-07': [
+      { type: 'goal',   half: 1, minute: 11, player: 'Forlán',
+        text: '1x0 Internacional' },
+      { type: 'goal',   half: 1, minute: 33, player: 'Robinho (CFC)',
+        text: '1x1 Coritiba' },
+      { type: 'goal',   half: 2, minute: 12, player: 'D´Alessandro',
+        text: '2x1 Internacional' },
+      { type: 'goal',   half: 2, minute: 41, player: 'Marcos Aurélio',
+        text: '2x2 Coritiba' }
+    ],
+    'GRE-VAS-2014-12-07': [
+      { type: 'goal',   half: 1, minute:  8, player: 'Barcos',
+        text: '1x0 Grêmio' },
+      { type: 'goal',   half: 1, minute: 18, player: 'Bernardo',
+        text: '1x1 Vasco' },
+      { type: 'goal',   half: 1, minute: 36, player: 'Riveros',
+        text: '2x1 Grêmio' },
+      { type: 'goal',   half: 2, minute:  5, player: 'Diego Renan',
+        text: '2x2 Vasco' },
+      { type: 'goal',   half: 2, minute: 24, player: 'Luan',
+        text: '3x2 Grêmio' },
+      { type: 'goal',   half: 2, minute: 31, player: 'Pedro Ken',
+        text: '3x3 Vasco' },
+      { type: 'goal',   half: 2, minute: 47, player: 'Yago Pikachu',
+        text: '3x4 Vasco — vira no fim' }
+    ],
+    'CHA-CAM-2014-12-07': [
+      { type: 'goal',   half: 1, minute: 17, player: 'Bruno Rangel',
+        text: '1x0 Chapecoense' },
+      { type: 'goal',   half: 1, minute: 34, player: 'Diego Tardelli',
+        text: '1x1 Atlético-MG' },
+      { type: 'goal',   half: 2, minute:  9, player: 'Camilo',
+        text: '2x1 Chapecoense' },
+      { type: 'goal',   half: 2, minute: 28, player: 'Tiago Real',
+        text: '3x1 Chapecoense' },
+      { type: 'goal',   half: 2, minute: 44, player: 'Hyoran',
+        text: '4x1 Chapecoense' }
+    ],
+    'FIG-GOI-2014-12-07': [
+      { type: 'goal',   half: 2, minute: 23, player: 'Pablo',
+        text: '1x0 Figueirense' }
+    ],
+    'BOT-FLA-2014-12-07': [
+      { type: 'yellow', half: 1, minute: 38, player: 'Bolatti' },
+      { type: 'goal',   half: 2, minute: 26, player: 'Alecsandro',
+        text: '0x1 Flamengo' }
+    ],
+
+    // ===== Clássicos e jogos marcantes do ano =====
+    'COR-SAO-2014-08-10': [
+      { type: 'goal',   half: 1, minute: 19, player: 'Paolo Guerrero',
+        text: '1x0 Corinthians' },
+      { type: 'goal',   half: 2, minute: 28, player: 'Alexandre Pato',
+        text: '1x1 São Paulo' }
+    ],
+    'FLA-FLU-2014-09-07': [
+      { type: 'goal',   half: 1, minute: 22, player: 'Hernane',
+        text: '1x0 Flamengo' },
+      { type: 'goal',   half: 2, minute: 11, player: 'Fred',
+        text: '1x1 Fluminense' },
+      { type: 'goal',   half: 2, minute: 37, player: 'Rafael Sóbis',
+        text: '1x2 Fluminense' }
+    ],
+    'GRE-INT-2014-09-28': [
+      { type: 'goal',   half: 1, minute: 14, player: 'Barcos',
+        text: '1x0 Grêmio' },
+      { type: 'goal',   half: 2, minute: 19, player: 'Riveros',
+        text: '2x0 Grêmio' },
+      { type: 'goal',   half: 2, minute: 41, player: 'D´Alessandro',
+        text: '2x1 Internacional' }
+    ],
+    'CAM-CRU-2014-10-19': [
+      { type: 'goal',   half: 2, minute: 16, player: 'Diego Tardelli',
+        text: '1x0 Atlético-MG — clássico mineiro pro Galo' }
+    ],
+    'SAO-PAL-2014-11-09': [
+      { type: 'goal',   half: 1, minute: 28, player: 'Pato',
+        text: '1x0 São Paulo' },
+      { type: 'goal',   half: 2, minute:  8, player: 'Henrique',
+        text: '1x1 Palmeiras' },
+      { type: 'goal',   half: 2, minute: 39, player: 'Ganso',
+        text: '2x1 São Paulo — vitória no clássico' }
+    ]
+
+  };
+}());
+
+},{}],112:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -24929,7 +25085,7 @@ module.exports = (function () {
   }
 }());
 
-},{}],112:[function(require,module,exports){
+},{}],113:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -25098,7 +25254,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./world_cup_2014_events":113}],113:[function(require,module,exports){
+},{"./world_cup_2014_events":114}],114:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -25662,7 +25818,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],114:[function(require,module,exports){
+},{}],115:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -25722,7 +25878,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./messages_en":115,"./messages_pt_br":116}],115:[function(require,module,exports){
+},{"./messages_en":116,"./messages_pt_br":117}],116:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -25768,7 +25924,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],116:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -25814,7 +25970,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],117:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -25907,7 +26063,7 @@ module.exports = (function () {
   return { importFixture: importFixture };
 }());
 
-},{"../persistence/base_model":133,"./validator":120}],118:[function(require,module,exports){
+},{"../persistence/base_model":134,"./validator":121}],119:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -25947,7 +26103,7 @@ module.exports = (function () {
   return { list: list, get: get };
 }());
 
-},{"../data/brasileirao_2014":110,"../data/copa_america_2015":111,"../data/world_cup_2014":112}],119:[function(require,module,exports){
+},{"../data/brasileirao_2014":110,"../data/copa_america_2015":112,"../data/world_cup_2014":113}],120:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26036,7 +26192,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],120:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26062,7 +26218,7 @@ module.exports = (function () {
   return { validate: validate };
 }());
 
-},{"./schema":119,"ajv":1}],121:[function(require,module,exports){
+},{"./schema":120,"ajv":1}],122:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26096,7 +26252,7 @@ module.exports = (function () {
   return { bind: bind };
 }());
 
-},{}],122:[function(require,module,exports){
+},{}],123:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26195,7 +26351,7 @@ module.exports = (function () {
   return { play: play };
 }());
 
-},{}],123:[function(require,module,exports){
+},{}],124:[function(require,module,exports){
 (function (process){
 /* global process */
 (function () {
@@ -26291,7 +26447,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":98,"./app/identity":99,"./app/runtime":102,"./app/wire_routes":103,"./persistence/base_model":133,"./persistence/local_storage_adapter":134,"./views/widgets/flash_view":183,"_process":91,"backbone":39,"backbone.marionette":37,"jquery":76}],124:[function(require,module,exports){
+},{"./app/controller":98,"./app/identity":99,"./app/runtime":102,"./app/wire_routes":103,"./persistence/base_model":134,"./persistence/local_storage_adapter":135,"./views/widgets/flash_view":184,"_process":91,"backbone":39,"backbone.marionette":37,"jquery":76}],125:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26389,7 +26545,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table":104,"../collections/matches":108,"../persistence/base_model":133,"../scheduling/scheduler":140,"./messages/championship":127}],125:[function(require,module,exports){
+},{"../classification/table":104,"../collections/matches":108,"../persistence/base_model":134,"../scheduling/scheduler":141,"./messages/championship":128}],126:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26450,7 +26606,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":133,"./messages/match":128}],126:[function(require,module,exports){
+},{"../persistence/base_model":134,"./messages/match":129}],127:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26513,7 +26669,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":133,"./messages/match_event":129}],127:[function(require,module,exports){
+},{"../persistence/base_model":134,"./messages/match_event":130}],128:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26524,7 +26680,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],128:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26535,7 +26691,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],129:[function(require,module,exports){
+},{}],130:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26547,7 +26703,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],130:[function(require,module,exports){
+},{}],131:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26556,7 +26712,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],131:[function(require,module,exports){
+},{}],132:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26585,7 +26741,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":133,"./messages/team":130}],132:[function(require,module,exports){
+},{"../persistence/base_model":134,"./messages/team":131}],133:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26625,7 +26781,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./base_model":133,"backbone":39}],133:[function(require,module,exports){
+},{"./base_model":134,"backbone":39}],134:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26694,7 +26850,7 @@ module.exports = (function () {
   return BaseModel;
 }());
 
-},{"backbone":39}],134:[function(require,module,exports){
+},{"backbone":39}],135:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26807,7 +26963,7 @@ module.exports = (function () {
   return LocalStorageAdapter;
 }());
 
-},{}],135:[function(require,module,exports){
+},{}],136:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26866,7 +27022,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],136:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26890,7 +27046,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{"./round_robin":139}],137:[function(require,module,exports){
+},{"./round_robin":140}],138:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26964,7 +27120,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./round_robin":139}],138:[function(require,module,exports){
+},{"./round_robin":140}],139:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27027,7 +27183,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{}],139:[function(require,module,exports){
+},{}],140:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27112,7 +27268,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],140:[function(require,module,exports){
+},{}],141:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27180,7 +27336,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./calendar":135,"./double_round_robin":136,"./groups":137,"./knockout":138,"./round_robin":139}],141:[function(require,module,exports){
+},{"./calendar":136,"./double_round_robin":137,"./groups":138,"./knockout":139,"./round_robin":140}],142:[function(require,module,exports){
 (function (Buffer){
 /*global Buffer, unescape, escape */
 module.exports = (function () {
@@ -27232,7 +27388,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":42}],142:[function(require,module,exports){
+},{"buffer":42}],143:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27278,7 +27434,7 @@ module.exports = (function () {
   return { rank: rank };
 }());
 
-},{}],143:[function(require,module,exports){
+},{}],144:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27343,7 +27499,7 @@ module.exports = (function () {
   return { summary: summary };
 }());
 
-},{}],144:[function(require,module,exports){
+},{}],145:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27387,7 +27543,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],145:[function(require,module,exports){
+},{}],146:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27454,7 +27610,7 @@ module.exports = (function () {
   return { aggregate: aggregate };
 }());
 
-},{}],146:[function(require,module,exports){
+},{}],147:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27498,7 +27654,7 @@ module.exports = (function () {
   return { rank: rank };
 }());
 
-},{}],147:[function(require,module,exports){
+},{}],148:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27553,7 +27709,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../app/role":100,"backbone.marionette":37}],148:[function(require,module,exports){
+},{"../app/role":100,"backbone.marionette":37}],149:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27568,7 +27724,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":37}],149:[function(require,module,exports){
+},{"backbone.marionette":37}],150:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27644,7 +27800,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":155}],150:[function(require,module,exports){
+},{"../helpers/escape_html":156}],151:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27722,7 +27878,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":155,"./form_template":149,"backbone.marionette":37}],151:[function(require,module,exports){
+},{"../helpers/escape_html":156,"./form_template":150,"backbone.marionette":37}],152:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27758,7 +27914,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":148,"./row_view":152,"backbone.marionette":37}],152:[function(require,module,exports){
+},{"./empty_view":149,"./row_view":153,"backbone.marionette":37}],153:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27793,7 +27949,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":155,"backbone.marionette":37}],153:[function(require,module,exports){
+},{"../helpers/escape_html":156,"backbone.marionette":37}],154:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27914,7 +28070,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":107,"../../persistence/base_model":133,"../classification/table_view":154,"../helpers/escape_html":155,"../stats/cards_leaderboard_view":172,"../stats/top_scorers_view":174,"backbone.marionette":37}],154:[function(require,module,exports){
+},{"../../collections/match_events":107,"../../persistence/base_model":134,"../classification/table_view":155,"../helpers/escape_html":156,"../stats/cards_leaderboard_view":173,"../stats/top_scorers_view":175,"backbone.marionette":37}],155:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27989,7 +28145,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":155,"../helpers/sparkline":157,"backbone.marionette":37}],155:[function(require,module,exports){
+},{"../helpers/escape_html":156,"../helpers/sparkline":158,"backbone.marionette":37}],156:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28003,7 +28159,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],156:[function(require,module,exports){
+},{}],157:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28042,7 +28198,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],157:[function(require,module,exports){
+},{}],158:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28075,7 +28231,7 @@ module.exports = (function () {
   return { render: render };
 }());
 
-},{}],158:[function(require,module,exports){
+},{}],159:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28097,7 +28253,7 @@ module.exports = (function () {
   return { link: link, h2hLink: h2hLink };
 }());
 
-},{"./escape_html":155}],159:[function(require,module,exports){
+},{"./escape_html":156}],160:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28276,7 +28432,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../app/role":100,"../collections/championships":106,"../collections/matches":108,"../collections/teams":109,"../i18n":114,"./helpers/escape_html":155,"./helpers/format_date":156,"backbone.marionette":37}],160:[function(require,module,exports){
+},{"../app/role":100,"../collections/championships":106,"../collections/matches":108,"../collections/teams":109,"../i18n":115,"./helpers/escape_html":156,"./helpers/format_date":157,"backbone.marionette":37}],161:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28420,7 +28576,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../importer/importer":117,"../importer/registry":118,"../persistence/base_model":133,"./helpers/escape_html":155,"backbone.marionette":37}],161:[function(require,module,exports){
+},{"../importer/importer":118,"../importer/registry":119,"../persistence/base_model":134,"./helpers/escape_html":156,"backbone.marionette":37}],162:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28437,7 +28593,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../i18n":114,"backbone.marionette":37}],162:[function(require,module,exports){
+},{"../../i18n":115,"backbone.marionette":37}],163:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28492,7 +28648,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":155,"backbone.marionette":37}],163:[function(require,module,exports){
+},{"../helpers/escape_html":156,"backbone.marionette":37}],164:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28532,7 +28688,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":155,"../helpers/team_link":158,"./status_labels":170,"backbone.marionette":37}],164:[function(require,module,exports){
+},{"../helpers/escape_html":156,"../helpers/team_link":159,"./status_labels":171,"backbone.marionette":37}],165:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28565,7 +28721,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":161,"./row_view":166,"backbone.marionette":37}],165:[function(require,module,exports){
+},{"./empty_view":162,"./row_view":167,"backbone.marionette":37}],166:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28614,7 +28770,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":155,"../helpers/format_date":156,"../helpers/team_link":158,"./status_labels":170}],166:[function(require,module,exports){
+},{"../helpers/escape_html":156,"../helpers/format_date":157,"../helpers/team_link":159,"./status_labels":171}],167:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28628,7 +28784,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":165,"backbone.marionette":37}],167:[function(require,module,exports){
+},{"./row_template":166,"backbone.marionette":37}],168:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28837,7 +28993,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":107,"../../models/match_event":126,"../../persistence/base_model":133,"../helpers/escape_html":155,"backbone.marionette":37}],168:[function(require,module,exports){
+},{"../../collections/match_events":107,"../../models/match_event":127,"../../persistence/base_model":134,"../helpers/escape_html":156,"backbone.marionette":37}],169:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28998,7 +29154,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":107,"../../live/cross_tab":121,"../../live/replay":122,"../../persistence/base_model":133,"../../share/encode":141,"./header_view":163,"./stats_view":169,"./timeline_view":171,"backbone.marionette":37}],169:[function(require,module,exports){
+},{"../../collections/match_events":107,"../../live/cross_tab":122,"../../live/replay":123,"../../persistence/base_model":134,"../../share/encode":142,"./header_view":164,"./stats_view":170,"./timeline_view":172,"backbone.marionette":37}],170:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29051,7 +29207,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/match_stats":144,"backbone.marionette":37}],170:[function(require,module,exports){
+},{"../../stats/match_stats":145,"backbone.marionette":37}],171:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29073,7 +29229,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],171:[function(require,module,exports){
+},{}],172:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29094,7 +29250,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./event_item_view":162,"backbone.marionette":37}],172:[function(require,module,exports){
+},{"./event_item_view":163,"backbone.marionette":37}],173:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29142,7 +29298,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/cards_leaderboard":142,"../helpers/escape_html":155,"backbone.marionette":37}],173:[function(require,module,exports){
+},{"../../stats/cards_leaderboard":143,"../helpers/escape_html":156,"backbone.marionette":37}],174:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29209,7 +29365,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/matches":108,"../../stats/head_to_head":143,"../helpers/escape_html":155,"../helpers/format_date":156,"backbone.marionette":37}],174:[function(require,module,exports){
+},{"../../collections/matches":108,"../../stats/head_to_head":144,"../helpers/escape_html":156,"../helpers/format_date":157,"backbone.marionette":37}],175:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29253,7 +29409,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/top_scorers":146,"../helpers/escape_html":155,"backbone.marionette":37}],175:[function(require,module,exports){
+},{"../../stats/top_scorers":147,"../helpers/escape_html":156,"backbone.marionette":37}],176:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29268,7 +29424,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":37}],176:[function(require,module,exports){
+},{"backbone.marionette":37}],177:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29299,7 +29455,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":155}],177:[function(require,module,exports){
+},{"../helpers/escape_html":156}],178:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29355,7 +29511,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":155,"./form_template":176,"backbone.marionette":37}],178:[function(require,module,exports){
+},{"../helpers/escape_html":156,"./form_template":177,"backbone.marionette":37}],179:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29379,7 +29535,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],179:[function(require,module,exports){
+},{}],180:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29401,7 +29557,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":175,"./list_template":178,"./row_view":182,"backbone.marionette":37}],180:[function(require,module,exports){
+},{"./empty_view":176,"./list_template":179,"./row_view":183,"backbone.marionette":37}],181:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29512,7 +29668,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/matches":108,"../../stats/team_record":145,"../helpers/escape_html":155,"../helpers/sparkline":157,"backbone.marionette":37}],181:[function(require,module,exports){
+},{"../../collections/matches":108,"../../stats/team_record":146,"../helpers/escape_html":156,"../helpers/sparkline":158,"backbone.marionette":37}],182:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29540,7 +29696,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":155}],182:[function(require,module,exports){
+},{"../helpers/escape_html":156}],183:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29569,7 +29725,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":181,"backbone.marionette":37}],183:[function(require,module,exports){
+},{"./row_template":182,"backbone.marionette":37}],184:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29632,4 +29788,4 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":155,"backbone.marionette":37}]},{},[123]);
+},{"../helpers/escape_html":156,"backbone.marionette":37}]},{},[124]);
