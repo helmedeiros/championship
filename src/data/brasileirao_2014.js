@@ -5,6 +5,16 @@ module.exports = (function () {
   // O campeão foi o Cruzeiro com 80 pontos. Aqui usamos um subconjunto das
   // partidas mais marcantes do campeonato para popular a tela rapidamente.
 
+  var EVENTS = require('./brasileirao_2014_events');
+
+  function attachEvents(list) {
+    list.forEach(function (m) {
+      var key = m.home + '-' + m.away + '-' + m.kickoff.slice(0, 10);
+      if (EVENTS[key]) { m.events = EVENTS[key]; }
+    });
+    return list;
+  }
+
   return {
     championship: {
       id:      'brasileirao-2014',
@@ -56,7 +66,7 @@ module.exports = (function () {
       { id: 'CRI', name: 'Criciúma',       'short': 'CRI', city: 'Criciúma',
         stadium: 'Heriberto Hülse' }
     ],
-    matches: matchesBuild()
+    matches: attachEvents(matchesBuild())
   };
 
   function r(home, hs, as, away, meta) {
