@@ -6,6 +6,8 @@ module.exports = (function () {
   // Aqui carregamos as 12 seleções e a fase de grupos completa
   // (18 jogos) + as 4 quartas + 2 semis + 3º lugar + final.
 
+  var EVENTS = require('./copa_america_2015_events');
+
   function ctx(round, group, date) { return [round, group, date]; }
   function m(home, hs, as, away, meta) {
     return {
@@ -16,6 +18,14 @@ module.exports = (function () {
       round: meta[0],
       group: meta[1]
     };
+  }
+  function attachEvents(list) {
+    list.forEach(function (match) {
+      var key = match.home + '-' + match.away + '-' +
+                match.kickoff.slice(0, 10);
+      if (EVENTS[key]) { match.events = EVENTS[key]; }
+    });
+    return list;
   }
 
   return {
@@ -41,7 +51,7 @@ module.exports = (function () {
       { id: 'PER', name: 'Peru',      'short': 'PER' },
       { id: 'VEN', name: 'Venezuela', 'short': 'VEN' }
     ],
-    matches: matchesBuild()
+    matches: attachEvents(matchesBuild())
   };
 
   function matchesBuild() {
