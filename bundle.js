@@ -25105,6 +25105,42 @@ module.exports = (function () {
 
   return {
 
+    // ===== Grupo B =====
+    'URU-JAM-2015-06-13': [
+      { type: 'goal',   half: 2, minute:  7, player: 'Cristian Rodríguez',
+        text: '1x0 Uruguai' }
+    ],
+    'ARG-PAR-2015-06-14': [
+      { type: 'goal',   half: 1, minute: 28, player: 'Agüero',
+        text: '1x0 Argentina' },
+      { type: 'goal',   half: 1, minute: 35, player: 'Messi',
+        text: '2x0 Argentina — pênalti' },
+      { type: 'goal',   half: 2, minute: 15, player: 'Barrios',
+        text: '2x1 Paraguai' },
+      { type: 'goal',   half: 2, minute: 44, player: 'Pablo González',
+        text: '2x2 Paraguai — empate no fim' }
+    ],
+    'PAR-JAM-2015-06-16': [
+      { type: 'goal',   half: 1, minute: 33, player: 'Roque Santa Cruz',
+        text: '1x0 Paraguai' }
+    ],
+    'ARG-URU-2015-06-17': [
+      { type: 'red',    half: 1, minute: 38, player: 'Cavani',
+        text: 'Cotovelada em Otamendi' },
+      { type: 'goal',   half: 2, minute: 12, player: 'Agüero',
+        text: '1x0 Argentina' }
+    ],
+    'URU-PAR-2015-06-20': [
+      { type: 'goal',   half: 2, minute:  5, player: 'Da Silva',
+        text: '1x0 Uruguai' },
+      { type: 'goal',   half: 2, minute: 18, player: 'Estigarribia',
+        text: '1x1 Paraguai' }
+    ],
+    'ARG-JAM-2015-06-20': [
+      { type: 'goal',   half: 1, minute: 10, player: 'Higuaín',
+        text: '1x0 Argentina' }
+    ],
+
     // ===== Grupo A =====
     'CHI-ECU-2015-06-11': [
       { type: 'goal',   half: 2, minute: 22, player: 'Arturo Vidal',
