@@ -25078,7 +25078,7 @@ module.exports = (function () {
       m('BRA', 0, 1, 'COL', ctx(2, 'Grupo C', '2015-06-18T01:30:00Z')),
       m('PER', 1, 0, 'VEN', ctx(2, 'Grupo C', '2015-06-18T22:30:00Z')),
       m('COL', 0, 0, 'PER', ctx(3, 'Grupo C', '2015-06-21T18:00:00Z')),
-      m('BRA', 1, 2, 'VEN', ctx(3, 'Grupo C', '2015-06-21T22:00:00Z')),
+      m('BRA', 2, 1, 'VEN', ctx(3, 'Grupo C', '2015-06-21T22:00:00Z')),
       // Quartas — rodada 4
       m('CHI', 1, 0, 'URU', ctx(4, 'Quartas', '2015-06-25T01:30:00Z')),
       m('BOL', 1, 3, 'PER', ctx(4, 'Quartas', '2015-06-25T22:30:00Z')),
@@ -25139,6 +25139,43 @@ module.exports = (function () {
     'ARG-JAM-2015-06-20': [
       { type: 'goal',   half: 1, minute: 10, player: 'Higuaín',
         text: '1x0 Argentina' }
+    ],
+
+    // ===== Grupo C =====
+    'COL-VEN-2015-06-14': [
+      { type: 'goal',   half: 2, minute: 17, player: 'Vizcarrondo',
+        text: '0x1 Venezuela — zaga vinotinto resolve' }
+    ],
+    'BRA-PER-2015-06-15': [
+      { type: 'goal',   half: 1, minute:  3, player: 'Cueva',
+        text: '0x1 Peru' },
+      { type: 'goal',   half: 1, minute: 39, player: 'Neymar',
+        text: '1x1 Brasil' },
+      { type: 'goal',   half: 2, minute: 46, player: 'Douglas Costa',
+        text: '2x1 Brasil — vira no apagar das luzes' }
+    ],
+    'BRA-COL-2015-06-18': [
+      { type: 'goal',   half: 1, minute: 36, player: 'Murillo',
+        text: '0x1 Colômbia' },
+      { type: 'red',    half: 2, minute: 47, player: 'Neymar',
+        text: 'Discussão após o apito final — suspenso' }
+    ],
+    'PER-VEN-2015-06-18': [
+      { type: 'goal',   half: 2, minute: 27, player: 'Pizarro',
+        text: '1x0 Peru' }
+    ],
+    'COL-PER-2015-06-21': [
+      { type: 'yellow', half: 2, minute: 12, player: 'Falcao' },
+      { type: 'comment', half: 2, minute: 47,
+        text: 'Sem gols; Colômbia e Peru se classificam' }
+    ],
+    'BRA-VEN-2015-06-21': [
+      { type: 'goal',   half: 1, minute: 24, player: 'Miku',
+        text: '0x1 Venezuela' },
+      { type: 'goal',   half: 2, minute:  6, player: 'Thiago Silva',
+        text: '1x1 Brasil' },
+      { type: 'goal',   half: 2, minute: 25, player: 'Roberto Firmino',
+        text: '2x1 Brasil — segue em 1º do grupo' }
     ],
 
     // ===== Grupo A =====
