@@ -25189,13 +25189,11 @@ module.exports = (function () {
       { type: 'goal',   half: 1, minute: 20, player: 'Cueva',
         text: '0x1 Peru' },
       { type: 'goal',   half: 1, minute: 44, player: 'Marcelo Moreno',
-        text: '1x1 Bolívia' },
+        text: '1x1 Bolívia — pênalti' },
       { type: 'goal',   half: 2, minute: 29, player: 'Paolo Guerrero',
         text: '1x2 Peru' },
-      { type: 'goal',   half: 2, minute: 31, player: 'Paolo Guerrero',
-        text: '1x3 Peru' },
       { type: 'goal',   half: 2, minute: 38, player: 'Paolo Guerrero',
-        text: '1x4 Peru — hat-trick do capitão' }
+        text: '1x3 Peru — vaga na semifinal' }
     ],
     'ARG-COL-2015-06-27': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
