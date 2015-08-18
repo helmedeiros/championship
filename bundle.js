@@ -25178,6 +25178,88 @@ module.exports = (function () {
         text: '2x1 Brasil — segue em 1º do grupo' }
     ],
 
+    // ===== Quartas de Final =====
+    'CHI-URU-2015-06-25': [
+      { type: 'red',    half: 2, minute: 18, player: 'Cavani',
+        text: '2º amarelo após confusão com Jara' },
+      { type: 'goal',   half: 2, minute: 36, player: 'Mauricio Isla',
+        text: '1x0 Chile — classifica' }
+    ],
+    'BOL-PER-2015-06-25': [
+      { type: 'goal',   half: 1, minute: 20, player: 'Cueva',
+        text: '0x1 Peru' },
+      { type: 'goal',   half: 1, minute: 44, player: 'Marcelo Moreno',
+        text: '1x1 Bolívia' },
+      { type: 'goal',   half: 2, minute: 29, player: 'Paolo Guerrero',
+        text: '1x2 Peru' },
+      { type: 'goal',   half: 2, minute: 31, player: 'Paolo Guerrero',
+        text: '1x3 Peru' },
+      { type: 'goal',   half: 2, minute: 38, player: 'Paolo Guerrero',
+        text: '1x4 Peru — hat-trick do capitão' }
+    ],
+    'ARG-COL-2015-06-27': [
+      { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
+      { type: 'half_time', half: 1, minute: 47, text: 'Intervalo' },
+      { type: 'comment',   half: 4, minute: 30,
+        text: 'Argentina vence 5x4 nos pênaltis (Cuadrado perdeu)' }
+    ],
+    'BRA-PAR-2015-06-28': [
+      { type: 'goal',   half: 1, minute: 15, player: 'Robinho',
+        text: '1x0 Brasil' },
+      { type: 'goal',   half: 2, minute: 27, player: 'Derlis González',
+        text: '1x1 Paraguai — pênalti' },
+      { type: 'comment', half: 4, minute: 30,
+        text: 'Paraguai vence 4x3 nos pênaltis; Brasil eliminado' }
+    ],
+
+    // ===== Semifinais =====
+    'CHI-PER-2015-06-30': [
+      { type: 'red',    half: 1, minute: 21, player: 'Carlos Zambrano' },
+      { type: 'goal',   half: 1, minute: 42, player: 'Eduardo Vargas',
+        text: '1x0 Chile' },
+      { type: 'goal',   half: 2, minute: 14, player: 'Eduardo Vargas',
+        text: '2x0 Chile' },
+      { type: 'goal',   half: 2, minute: 15, player: 'Paolo Guerrero',
+        text: '2x1 Peru' },
+      { type: 'red',    half: 2, minute: 33, player: 'Gary Medel' }
+    ],
+    'ARG-PAR-2015-07-01': [
+      { type: 'goal',   half: 1, minute: 15, player: 'Pastore',
+        text: '1x0 Argentina' },
+      { type: 'goal',   half: 1, minute: 16, player: 'Lucena',
+        text: '1x1 Paraguai' },
+      { type: 'goal',   half: 1, minute: 26, player: 'Di María',
+        text: '2x1 Argentina' },
+      { type: 'goal',   half: 1, minute: 28, player: 'Agüero',
+        text: '3x1 Argentina' },
+      { type: 'goal',   half: 1, minute: 32, player: 'Higuaín',
+        text: '4x1 Argentina' },
+      { type: 'goal',   half: 2, minute:  8, player: 'Higuaín',
+        text: '5x1 Argentina' },
+      { type: 'goal',   half: 2, minute: 15, player: 'Lavezzi',
+        text: '6x1 Argentina — goleada histórica' }
+    ],
+
+    // ===== Disputa de 3º — Peru 2×0 Paraguai =====
+    'PER-PAR-2015-07-04': [
+      { type: 'goal',   half: 2, minute:  3, player: 'Paolo Guerrero',
+        text: '1x0 Peru' },
+      { type: 'goal',   half: 2, minute: 43, player: 'André Carrillo',
+        text: '2x0 Peru — Guerrero artilheiro do torneio (4 gols)' }
+    ],
+
+    // ===== Final — Chile 0×0 Argentina (4x1 pen) =====
+    'CHI-ARG-2015-07-05': [
+      { type: 'kickoff',   half: 1, minute:  0,
+        text: 'Início da final em Santiago' },
+      { type: 'half_time', half: 1, minute: 47, text: 'Intervalo' },
+      { type: 'comment',   half: 2, minute: 47,
+        text: 'Sem gols no tempo regulamentar; vai pra prorrogação' },
+      { type: 'comment',   half: 4, minute: 30,
+        text: 'Bravo brilha; Chile 4x1 nos pênaltis — campeão pela 1ª vez' },
+      { type: 'full_time', half: 4, minute: 31, text: 'Chile campeão!' }
+    ],
+
     // ===== Grupo A =====
     'CHI-ECU-2015-06-11': [
       { type: 'goal',   half: 2, minute: 22, player: 'Arturo Vidal',
