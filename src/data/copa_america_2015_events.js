@@ -43,6 +43,43 @@ module.exports = (function () {
         text: '1x0 Argentina' }
     ],
 
+    // ===== Grupo C =====
+    'COL-VEN-2015-06-14': [
+      { type: 'goal',   half: 2, minute: 17, player: 'Vizcarrondo',
+        text: '0x1 Venezuela — zaga vinotinto resolve' }
+    ],
+    'BRA-PER-2015-06-15': [
+      { type: 'goal',   half: 1, minute:  3, player: 'Cueva',
+        text: '0x1 Peru' },
+      { type: 'goal',   half: 1, minute: 39, player: 'Neymar',
+        text: '1x1 Brasil' },
+      { type: 'goal',   half: 2, minute: 46, player: 'Douglas Costa',
+        text: '2x1 Brasil — vira no apagar das luzes' }
+    ],
+    'BRA-COL-2015-06-18': [
+      { type: 'goal',   half: 1, minute: 36, player: 'Murillo',
+        text: '0x1 Colômbia' },
+      { type: 'red',    half: 2, minute: 47, player: 'Neymar',
+        text: 'Discussão após o apito final — suspenso' }
+    ],
+    'PER-VEN-2015-06-18': [
+      { type: 'goal',   half: 2, minute: 27, player: 'Pizarro',
+        text: '1x0 Peru' }
+    ],
+    'COL-PER-2015-06-21': [
+      { type: 'yellow', half: 2, minute: 12, player: 'Falcao' },
+      { type: 'comment', half: 2, minute: 47,
+        text: 'Sem gols; Colômbia e Peru se classificam' }
+    ],
+    'BRA-VEN-2015-06-21': [
+      { type: 'goal',   half: 1, minute: 24, player: 'Miku',
+        text: '0x1 Venezuela' },
+      { type: 'goal',   half: 2, minute:  6, player: 'Thiago Silva',
+        text: '1x1 Brasil' },
+      { type: 'goal',   half: 2, minute: 25, player: 'Roberto Firmino',
+        text: '2x1 Brasil — segue em 1º do grupo' }
+    ],
+
     // ===== Grupo A =====
     'CHI-ECU-2015-06-11': [
       { type: 'goal',   half: 2, minute: 22, player: 'Arturo Vidal',

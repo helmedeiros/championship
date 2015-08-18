@@ -76,7 +76,7 @@ module.exports = (function () {
       m('BRA', 0, 1, 'COL', ctx(2, 'Grupo C', '2015-06-18T01:30:00Z')),
       m('PER', 1, 0, 'VEN', ctx(2, 'Grupo C', '2015-06-18T22:30:00Z')),
       m('COL', 0, 0, 'PER', ctx(3, 'Grupo C', '2015-06-21T18:00:00Z')),
-      m('BRA', 1, 2, 'VEN', ctx(3, 'Grupo C', '2015-06-21T22:00:00Z')),
+      m('BRA', 2, 1, 'VEN', ctx(3, 'Grupo C', '2015-06-21T22:00:00Z')),
       // Quartas — rodada 4
       m('CHI', 1, 0, 'URU', ctx(4, 'Quartas', '2015-06-25T01:30:00Z')),
       m('BOL', 1, 3, 'PER', ctx(4, 'Quartas', '2015-06-25T22:30:00Z')),
