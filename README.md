@@ -70,6 +70,15 @@ aplicação em poucos cliques:
   grupos (18 jogos) mais quartas, semis, disputa de 3º e a final entre
   Chile e Argentina, decidida nos pênaltis com o Chile campeão.
 
+Cada importador traz **gols com autor, cartões e linha do tempo** anexados
+às partidas (~470 eventos no total). Depois de importar, a tela do
+campeonato mostra artilharia real (James Rodríguez 6 gols na Copa 2014;
+Vargas e Guerrero empatados em 4 na Copa América 2015) e o ranking
+disciplinar inclui os cartões marcantes (Pepe, Suárez, Cavani). A
+linha do tempo de cada partida está populada e o **Reviver** reproduz a
+partida no ritmo certo. Os arquivos `src/data/*_events.js` mantêm os
+eventos separados do schedule para facilitar a manutenção.
+
 Cada fixture é validado contra um JSON Schema (`src/importer/schema.js`)
 via Ajv 0.6 antes de tocar o `localStorage`. A reimportação do mesmo
 campeonato é bloqueada por padrão — o botão **Reimportar (substituir)**
