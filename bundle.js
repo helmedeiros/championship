@@ -24344,6 +24344,7 @@ module.exports = (function () {
 
   function wireHome(app, controller) {
     controller.home = function () {
+      seedChampionship();
       app.getRegion('mainRegion').show(new HomeView());
     };
     controller.adminSetup = function () {
