@@ -62,18 +62,37 @@ module.exports = (function () {
       daysBetween: 7
     });
     var saved = storage.list('matches').slice(0, 4);
+    var LIVE_EVENTS = [
+      { type: 'kickoff', half: 1, minute:  0,
+        text: 'Início da partida no Morumbi' },
+      { type: 'yellow',  half: 1, minute: 18, player: 'Jadson',
+        text: 'Falta dura no meio-campo' },
+      { type: 'goal',    half: 1, minute: 23, player: 'Alexandre Pato',
+        text: '1x0 São Paulo — chute cruzado de fora da área' },
+      { type: 'yellow',  half: 1, minute: 41, player: 'Paolo Guerrero' },
+      { type: 'half_time', half: 1, minute: 47,
+        text: 'Intervalo — São Paulo vence o clássico até aqui' }
+    ];
     var sample = [
-      { homeScore: 2, awayScore: 1 },
-      { homeScore: 0, awayScore: 0 },
-      { homeScore: 3, awayScore: 2 },
-      { homeScore: 1, awayScore: 1 }
+      { status: 'live',     homeScore: 1, awayScore: 0,
+        events: LIVE_EVENTS },
+      { status: 'finished', homeScore: 0, awayScore: 0 },
+      { status: 'finished', homeScore: 3, awayScore: 2 },
+      { status: 'finished', homeScore: 1, awayScore: 1 }
     ];
     saved.forEach(function (m, idx) {
       var s = sample[idx % sample.length];
-      m.status = 'finished';
+      m.status = s.status;
       m.homeScore = s.homeScore;
       m.awayScore = s.awayScore;
       storage.update('matches', m);
+      (s.events || []).forEach(function (ev) {
+        storage.create('match_events', {
+          match: m.id, type: ev.type,
+          half: ev.half, minute: ev.minute,
+          player: ev.player || null, text: ev.text || ''
+        });
+      });
     });
   }
 
