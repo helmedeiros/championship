@@ -308,6 +308,31 @@ describe('smoke/bundle', function () {
     }, 300);
   });
 
+  it('home mostra cartão "AO VIVO" com a partida em andamento do demo',
+    function (done) {
+      var bundle = fs.readFileSync(BUNDLE, 'utf8');
+      var html = '<!DOCTYPE html><html><body>' +
+        '<div id="regiao-navegacao"></div>' +
+        '<div id="regiao-mensagens"></div>' +
+        '<div id="regiao-principal"><h1>Carregando&hellip;</h1></div>' +
+        '</body></html>';
+      var doc = jsdom.jsdom(html, { url: 'http://localhost/#/' });
+      var win = doc.defaultView;
+      polyfillLocalStorage(win);
+      try { win.eval(bundle); } catch (err) { return done(err); }
+      setTimeout(function () {
+        try {
+          var region = doc.getElementById('regiao-principal');
+          var label = region.querySelector('.highlight-label');
+          expect(label, 'rótulo de destaque deveria existir')
+            .to.not.equal(null);
+          expect(label.textContent, 'destaque deveria estar AO VIVO')
+            .to.match(/AO VIVO/);
+          done();
+        } catch (a) { done(a); }
+      }, 400);
+    });
+
   it('rota partidas/compartilhada/:token renderiza a partida do link',
     function (done) {
       // payload pré-encodado: BRA 1x7 GER + 2 eventos.
