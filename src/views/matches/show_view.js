@@ -8,7 +8,6 @@ module.exports = (function () {
   var StatsView = require('./stats_view');
   var BaseModel = require('../../persistence/base_model');
   var crossTab = require('../../live/cross_tab');
-  var replay = require('../../live/replay');
   var shareEncode = require('../../share/encode');
 
   return Marionette.LayoutView.extend({
@@ -24,10 +23,6 @@ module.exports = (function () {
         '<div class="match-toolbar">' +
           '<a class="btn btn-sm btn-default match-open-scorer" href="' +
             scoreboardHref + '">Abrir scoreboard</a> ' +
-          '<button class="btn btn-sm btn-info match-replay" ' +
-            'data-speed="4">Reviver (4×)</button> ' +
-          '<button class="btn btn-sm btn-info match-replay" ' +
-            'data-speed="16">Reviver (16×)</button> ' +
           '<button class="btn btn-sm btn-default match-share" ' +
             'aria-label="Copiar link de compartilhamento desta partida">' +
             'Copiar link' +
@@ -66,7 +61,6 @@ module.exports = (function () {
 
     events: {
       'click .match-tabs li': 'onTabClick',
-      'click .match-replay':  'onReplay',
       'click .match-share':   'onShare'
     },
 
@@ -124,21 +118,6 @@ module.exports = (function () {
       try { win.prompt('Link para compartilhar:', url); } catch (err) {}
     },
 
-    onReplay: function (e) {
-      if (e && e.preventDefault) { e.preventDefault(); }
-      var speed = parseInt(e.currentTarget.getAttribute('data-speed'), 10) || 4;
-      if (this._replayCtl) { this._replayCtl.stop(); }
-      var snapshot = this.matchEvents.toJSON();
-      this.matchEvents.reset([]);
-      var view = this;
-      this._replayCtl = replay.play(snapshot, {
-        speed: speed,
-        minuteDurationMs: 1000,
-        onEvent: function (ev) { view.matchEvents.add(ev); },
-        onComplete: function () { view._replayCtl = null; }
-      });
-    },
-
     _bindLive: function () {
       var view = this;
       var win = typeof window !== 'undefined' ? window : null;
@@ -152,7 +131,6 @@ module.exports = (function () {
 
     onDestroy: function () {
       if (this._unbindLive) { this._unbindLive(); }
-      if (this._replayCtl) { this._replayCtl.stop(); }
     }
 
   });
