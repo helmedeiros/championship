@@ -75,9 +75,9 @@ Cada importador traz **gols com autor, cartões e linha do tempo** anexados
 campeonato mostra artilharia real (James Rodríguez 6 gols na Copa 2014;
 Vargas e Guerrero empatados em 4 na Copa América 2015) e o ranking
 disciplinar inclui os cartões marcantes (Pepe, Suárez, Cavani). A
-linha do tempo de cada partida está populada e o **Reviver** reproduz a
-partida no ritmo certo. Os arquivos `src/data/*_events.js` mantêm os
-eventos separados do schedule para facilitar a manutenção.
+linha do tempo de cada partida é populada com os gols, cartões e
+comentários. Os arquivos `src/data/*_events.js` mantêm os eventos
+separados do schedule para facilitar a manutenção.
 
 Cada fixture é validado contra um JSON Schema (`src/importer/schema.js`)
 via Ajv 0.6 antes de tocar o `localStorage`. A reimportação do mesmo
@@ -96,8 +96,6 @@ o objeto `{championship, teams, matches}`, registre em
 - Abra `#/partidas/:id` em outra aba para acompanhar como torcedor.
 - Gols, cartões, substituições e comentários registrados no scorer aparecem
   na linha do tempo da outra aba sem precisar atualizar.
-- Para partidas finalizadas, os botões "Reviver (4×)" e "Reviver (16×)" no
-  detalhe da partida reproduzem todos os eventos no ritmo original do jogo.
 
 ## Como rodar
 
