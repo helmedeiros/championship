@@ -17,6 +17,7 @@ module.exports = (function () {
           name:        { type: 'string', minLength: 1 },
           season:      { type: 'integer', minimum: 1900, maximum: 2100 },
           country:     { type: 'string' },
+          version:     { type: 'integer', minimum: 1 },
           format: {
             type: 'string',
             'enum': ['league', 'double-round-robin', 'groups-knockout', 'knockout']

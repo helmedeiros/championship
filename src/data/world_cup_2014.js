@@ -117,6 +117,7 @@ module.exports = (function () {
       name:    'Copa do Mundo FIFA 2014',
       season:  2014,
       country: 'BR',
+      version: 2,
       format:  'groups-knockout',
       tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
     },

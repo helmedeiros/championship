@@ -34,6 +34,7 @@ module.exports = (function () {
       name:    'Copa América 2015',
       season:  2015,
       country: 'CL',
+      version: 2,
       format:  'groups-knockout',
       tiebreakers: ['points', 'goal_diff', 'goals_for', 'head_to_head']
     },
