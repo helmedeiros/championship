@@ -24790,6 +24790,7 @@ module.exports = (function () {
       name:    'Brasileirão Série A 2014',
       season:  2014,
       country: 'BR',
+      version: 2,
       format:  'double-round-robin',
       tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
     },
@@ -25056,6 +25057,7 @@ module.exports = (function () {
       name:    'Copa América 2015',
       season:  2015,
       country: 'CL',
+      version: 2,
       format:  'groups-knockout',
       tiebreakers: ['points', 'goal_diff', 'goals_for', 'head_to_head']
     },
@@ -25460,6 +25462,7 @@ module.exports = (function () {
       name:    'Copa do Mundo FIFA 2014',
       season:  2014,
       country: 'BR',
+      version: 2,
       format:  'groups-knockout',
       tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
     },
@@ -26378,6 +26381,7 @@ module.exports = (function () {
           name:        { type: 'string', minLength: 1 },
           season:      { type: 'integer', minimum: 1900, maximum: 2100 },
           country:     { type: 'string' },
+          version:     { type: 'integer', minimum: 1 },
           format: {
             type: 'string',
             'enum': ['league', 'double-round-robin', 'groups-knockout', 'knockout']
