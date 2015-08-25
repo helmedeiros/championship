@@ -26239,6 +26239,19 @@ module.exports = (function () {
     return storage.create('championships', data);
   }
 
+  function wipeChampionship(storage, championshipId) {
+    var existing = storage.read('championships', championshipId);
+    if (!existing) { return; }
+    storage.list('matches').forEach(function (m) {
+      if (m.championship !== championshipId) { return; }
+      storage.list('match_events').forEach(function (ev) {
+        if (ev.match === m.id) { storage.destroy('match_events', ev.id); }
+      });
+      storage.destroy('matches', m.id);
+    });
+    storage.destroy('championships', championshipId);
+  }
+
   function importTeams(storage, teams) {
     return teams.map(function (t) { return storage.create('teams', t); });
   }
@@ -26318,7 +26331,10 @@ module.exports = (function () {
     };
   }
 
-  return { importFixture: importFixture };
+  return {
+    importFixture:    importFixture,
+    wipeChampionship: wipeChampionship
+  };
 }());
 
 },{"../persistence/base_model":134,"./validator":122}],120:[function(require,module,exports){
