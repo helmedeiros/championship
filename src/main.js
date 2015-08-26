@@ -26,6 +26,7 @@
   var FlashView = require('./views/widgets/flash_view');
   var BaseModel = require('./persistence/base_model');
   var LocalStorageAdapter = require('./persistence/local_storage_adapter');
+  var autoUpdate = require('./importer/auto_update');
 
   function createApp(deps) {
     var MarionetteDep = (deps && deps.Marionette) || Marionette;
@@ -54,6 +55,7 @@
 
     app.addInitializer(function () {
       BaseModel.setStorage(storageFactory());
+      try { autoUpdate.syncAll(BaseModel.getStorage()); } catch (err) {}
     });
 
     app.on('start', function () {
