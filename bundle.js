@@ -24503,7 +24503,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":106,"../collections/match_events":107,"../collections/matches":108,"../collections/teams":109,"../models/championship":125,"../models/match":126,"../models/team":132,"../persistence/base_model":134,"../share/encode":142,"../views/admin_setup_view":148,"../views/championships/form_view":151,"../views/championships/list_view":152,"../views/championships/show_view":154,"../views/home_view":160,"../views/importer_view":161,"../views/matches/list_view":165,"../views/matches/scorer_view":168,"../views/matches/show_view":169,"../views/stats/head_to_head_view":174,"../views/teams/form_view":178,"../views/teams/list_view":180,"../views/teams/profile_view":181,"./role":100,"./router":101}],104:[function(require,module,exports){
+},{"../collections/championships":106,"../collections/match_events":107,"../collections/matches":108,"../collections/teams":109,"../models/championship":126,"../models/match":127,"../models/team":133,"../persistence/base_model":135,"../share/encode":143,"../views/admin_setup_view":149,"../views/championships/form_view":152,"../views/championships/list_view":153,"../views/championships/show_view":155,"../views/home_view":161,"../views/importer_view":162,"../views/matches/list_view":166,"../views/matches/scorer_view":169,"../views/matches/show_view":170,"../views/stats/head_to_head_view":175,"../views/teams/form_view":179,"../views/teams/list_view":181,"../views/teams/profile_view":182,"./role":100,"./router":101}],104:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -24658,7 +24658,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/championship":125,"../persistence/base_collection":133}],107:[function(require,module,exports){
+},{"../models/championship":126,"../persistence/base_collection":134}],107:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -24692,7 +24692,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match_event":127,"../persistence/base_collection":133}],108:[function(require,module,exports){
+},{"../models/match_event":128,"../persistence/base_collection":134}],108:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -24753,7 +24753,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/match":126,"../persistence/base_collection":133}],109:[function(require,module,exports){
+},{"../models/match":127,"../persistence/base_collection":134}],109:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -24766,7 +24766,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../models/team":132,"../persistence/base_collection":133}],110:[function(require,module,exports){
+},{"../models/team":133,"../persistence/base_collection":134}],110:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26232,6 +26232,55 @@ module.exports = (function () {
 module.exports = (function () {
   'use strict';
 
+  // Atualizador silencioso: para cada fixture já importado no storage,
+  // compara a version persistida com a version atual no código. Se a
+  // versão local for menor (ou ausente), apaga o campeonato em cascata
+  // e reimporta. Fixtures que o usuário nunca importou ficam intactos.
+
+  var registry = require('./registry');
+  var importer = require('./importer');
+
+  function syncOne(storage, entry) {
+    var fixture = entry.load();
+    var champId = fixture.championship.id;
+    var existing = storage.read('championships', champId);
+    if (!existing) {
+      return { id: champId, action: 'skip', reason: 'não importado' };
+    }
+    var currentVersion = fixture.championship.version || 1;
+    var storedVersion = existing.version || 1;
+    if (storedVersion >= currentVersion) {
+      return { id: champId, action: 'kept', version: storedVersion };
+    }
+    importer.wipeChampionship(storage, champId);
+    importer.importFixture(fixture, { storage: storage });
+    return {
+      id: champId, action: 'updated',
+      from: storedVersion, to: currentVersion
+    };
+  }
+
+  function syncAll(storage) {
+    if (!storage) { return []; }
+    return registry.list().map(function (entry) {
+      var full = registry.get(entry.id);
+      return syncOne(storage, {
+        id:   entry.id,
+        load: function () { return full; }
+      });
+    });
+  }
+
+  return {
+    syncAll: syncAll,
+    syncOne: syncOne
+  };
+}());
+
+},{"./importer":120,"./registry":121}],120:[function(require,module,exports){
+module.exports = (function () {
+  'use strict';
+
   var BaseModel = require('../persistence/base_model');
   var validator = require('./validator');
 
@@ -26337,7 +26386,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../persistence/base_model":134,"./validator":122}],120:[function(require,module,exports){
+},{"../persistence/base_model":135,"./validator":123}],121:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26377,7 +26426,7 @@ module.exports = (function () {
   return { list: list, get: get };
 }());
 
-},{"../data/brasileirao_2014":110,"../data/copa_america_2015":112,"../data/world_cup_2014":114}],121:[function(require,module,exports){
+},{"../data/brasileirao_2014":110,"../data/copa_america_2015":112,"../data/world_cup_2014":114}],122:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26467,7 +26516,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],122:[function(require,module,exports){
+},{}],123:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26493,7 +26542,7 @@ module.exports = (function () {
   return { validate: validate };
 }());
 
-},{"./schema":121,"ajv":1}],123:[function(require,module,exports){
+},{"./schema":122,"ajv":1}],124:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26527,7 +26576,7 @@ module.exports = (function () {
   return { bind: bind };
 }());
 
-},{}],124:[function(require,module,exports){
+},{}],125:[function(require,module,exports){
 (function (process){
 /* global process */
 (function () {
@@ -26557,6 +26606,7 @@ module.exports = (function () {
   var FlashView = require('./views/widgets/flash_view');
   var BaseModel = require('./persistence/base_model');
   var LocalStorageAdapter = require('./persistence/local_storage_adapter');
+  var autoUpdate = require('./importer/auto_update');
 
   function createApp(deps) {
     var MarionetteDep = (deps && deps.Marionette) || Marionette;
@@ -26585,6 +26635,7 @@ module.exports = (function () {
 
     app.addInitializer(function () {
       BaseModel.setStorage(storageFactory());
+      try { autoUpdate.syncAll(BaseModel.getStorage()); } catch (err) {}
     });
 
     app.on('start', function () {
@@ -26623,7 +26674,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require('_process'))
-},{"./app/controller":98,"./app/identity":99,"./app/runtime":102,"./app/wire_routes":103,"./persistence/base_model":134,"./persistence/local_storage_adapter":135,"./views/widgets/flash_view":184,"_process":91,"backbone":39,"backbone.marionette":37,"jquery":76}],125:[function(require,module,exports){
+},{"./app/controller":98,"./app/identity":99,"./app/runtime":102,"./app/wire_routes":103,"./importer/auto_update":119,"./persistence/base_model":135,"./persistence/local_storage_adapter":136,"./views/widgets/flash_view":185,"_process":91,"backbone":39,"backbone.marionette":37,"jquery":76}],126:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26721,7 +26772,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../classification/table":104,"../collections/matches":108,"../persistence/base_model":134,"../scheduling/scheduler":141,"./messages/championship":128}],126:[function(require,module,exports){
+},{"../classification/table":104,"../collections/matches":108,"../persistence/base_model":135,"../scheduling/scheduler":142,"./messages/championship":129}],127:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26782,7 +26833,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":134,"./messages/match":129}],127:[function(require,module,exports){
+},{"../persistence/base_model":135,"./messages/match":130}],128:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26845,7 +26896,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":134,"./messages/match_event":130}],128:[function(require,module,exports){
+},{"../persistence/base_model":135,"./messages/match_event":131}],129:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26856,7 +26907,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],129:[function(require,module,exports){
+},{}],130:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26867,7 +26918,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],130:[function(require,module,exports){
+},{}],131:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26879,7 +26930,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],131:[function(require,module,exports){
+},{}],132:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26888,7 +26939,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],132:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26917,7 +26968,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../persistence/base_model":134,"./messages/team":131}],133:[function(require,module,exports){
+},{"../persistence/base_model":135,"./messages/team":132}],134:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -26957,7 +27008,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./base_model":134,"backbone":39}],134:[function(require,module,exports){
+},{"./base_model":135,"backbone":39}],135:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27026,7 +27077,7 @@ module.exports = (function () {
   return BaseModel;
 }());
 
-},{"backbone":39}],135:[function(require,module,exports){
+},{"backbone":39}],136:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27139,7 +27190,7 @@ module.exports = (function () {
   return LocalStorageAdapter;
 }());
 
-},{}],136:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27198,7 +27249,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],137:[function(require,module,exports){
+},{}],138:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27222,7 +27273,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{"./round_robin":140}],138:[function(require,module,exports){
+},{"./round_robin":141}],139:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27296,7 +27347,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./round_robin":140}],139:[function(require,module,exports){
+},{"./round_robin":141}],140:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27359,7 +27410,7 @@ module.exports = (function () {
   return { generate: generate };
 }());
 
-},{}],140:[function(require,module,exports){
+},{}],141:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27444,7 +27495,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],141:[function(require,module,exports){
+},{}],142:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27512,7 +27563,7 @@ module.exports = (function () {
   };
 }());
 
-},{"./calendar":136,"./double_round_robin":137,"./groups":138,"./knockout":139,"./round_robin":140}],142:[function(require,module,exports){
+},{"./calendar":137,"./double_round_robin":138,"./groups":139,"./knockout":140,"./round_robin":141}],143:[function(require,module,exports){
 (function (Buffer){
 /*global Buffer, unescape, escape */
 module.exports = (function () {
@@ -27564,7 +27615,7 @@ module.exports = (function () {
 }());
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":42}],143:[function(require,module,exports){
+},{"buffer":42}],144:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27610,7 +27661,7 @@ module.exports = (function () {
   return { rank: rank };
 }());
 
-},{}],144:[function(require,module,exports){
+},{}],145:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27675,7 +27726,7 @@ module.exports = (function () {
   return { summary: summary };
 }());
 
-},{}],145:[function(require,module,exports){
+},{}],146:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27719,7 +27770,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],146:[function(require,module,exports){
+},{}],147:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27786,7 +27837,7 @@ module.exports = (function () {
   return { aggregate: aggregate };
 }());
 
-},{}],147:[function(require,module,exports){
+},{}],148:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27830,7 +27881,7 @@ module.exports = (function () {
   return { rank: rank };
 }());
 
-},{}],148:[function(require,module,exports){
+},{}],149:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27885,7 +27936,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../app/role":100,"backbone.marionette":37}],149:[function(require,module,exports){
+},{"../app/role":100,"backbone.marionette":37}],150:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27900,7 +27951,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":37}],150:[function(require,module,exports){
+},{"backbone.marionette":37}],151:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -27976,7 +28027,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":156}],151:[function(require,module,exports){
+},{"../helpers/escape_html":157}],152:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28054,7 +28105,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":156,"./form_template":150,"backbone.marionette":37}],152:[function(require,module,exports){
+},{"../helpers/escape_html":157,"./form_template":151,"backbone.marionette":37}],153:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28090,7 +28141,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":149,"./row_view":153,"backbone.marionette":37}],153:[function(require,module,exports){
+},{"./empty_view":150,"./row_view":154,"backbone.marionette":37}],154:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28125,7 +28176,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":156,"backbone.marionette":37}],154:[function(require,module,exports){
+},{"../helpers/escape_html":157,"backbone.marionette":37}],155:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28246,7 +28297,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":107,"../../persistence/base_model":134,"../classification/table_view":155,"../helpers/escape_html":156,"../stats/cards_leaderboard_view":173,"../stats/top_scorers_view":175,"backbone.marionette":37}],155:[function(require,module,exports){
+},{"../../collections/match_events":107,"../../persistence/base_model":135,"../classification/table_view":156,"../helpers/escape_html":157,"../stats/cards_leaderboard_view":174,"../stats/top_scorers_view":176,"backbone.marionette":37}],156:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28321,7 +28372,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":156,"../helpers/sparkline":158,"backbone.marionette":37}],156:[function(require,module,exports){
+},{"../helpers/escape_html":157,"../helpers/sparkline":159,"backbone.marionette":37}],157:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28335,7 +28386,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],157:[function(require,module,exports){
+},{}],158:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28374,7 +28425,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],158:[function(require,module,exports){
+},{}],159:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28407,7 +28458,7 @@ module.exports = (function () {
   return { render: render };
 }());
 
-},{}],159:[function(require,module,exports){
+},{}],160:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28429,7 +28480,7 @@ module.exports = (function () {
   return { link: link, h2hLink: h2hLink };
 }());
 
-},{"./escape_html":156}],160:[function(require,module,exports){
+},{"./escape_html":157}],161:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28608,7 +28659,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../app/role":100,"../collections/championships":106,"../collections/matches":108,"../collections/teams":109,"../i18n":116,"./helpers/escape_html":156,"./helpers/format_date":157,"backbone.marionette":37}],161:[function(require,module,exports){
+},{"../app/role":100,"../collections/championships":106,"../collections/matches":108,"../collections/teams":109,"../i18n":116,"./helpers/escape_html":157,"./helpers/format_date":158,"backbone.marionette":37}],162:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28752,7 +28803,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../importer/importer":119,"../importer/registry":120,"../persistence/base_model":134,"./helpers/escape_html":156,"backbone.marionette":37}],162:[function(require,module,exports){
+},{"../importer/importer":120,"../importer/registry":121,"../persistence/base_model":135,"./helpers/escape_html":157,"backbone.marionette":37}],163:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28769,7 +28820,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../i18n":116,"backbone.marionette":37}],163:[function(require,module,exports){
+},{"../../i18n":116,"backbone.marionette":37}],164:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28824,7 +28875,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":156,"backbone.marionette":37}],164:[function(require,module,exports){
+},{"../helpers/escape_html":157,"backbone.marionette":37}],165:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28864,7 +28915,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":156,"../helpers/team_link":159,"./status_labels":171,"backbone.marionette":37}],165:[function(require,module,exports){
+},{"../helpers/escape_html":157,"../helpers/team_link":160,"./status_labels":172,"backbone.marionette":37}],166:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28897,7 +28948,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":162,"./row_view":167,"backbone.marionette":37}],166:[function(require,module,exports){
+},{"./empty_view":163,"./row_view":168,"backbone.marionette":37}],167:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28946,7 +28997,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":156,"../helpers/format_date":157,"../helpers/team_link":159,"./status_labels":171}],167:[function(require,module,exports){
+},{"../helpers/escape_html":157,"../helpers/format_date":158,"../helpers/team_link":160,"./status_labels":172}],168:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -28960,7 +29011,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":166,"backbone.marionette":37}],168:[function(require,module,exports){
+},{"./row_template":167,"backbone.marionette":37}],169:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29169,7 +29220,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":107,"../../models/match_event":127,"../../persistence/base_model":134,"../helpers/escape_html":156,"backbone.marionette":37}],169:[function(require,module,exports){
+},{"../../collections/match_events":107,"../../models/match_event":128,"../../persistence/base_model":135,"../helpers/escape_html":157,"backbone.marionette":37}],170:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29308,7 +29359,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":107,"../../live/cross_tab":123,"../../persistence/base_model":134,"../../share/encode":142,"./header_view":164,"./stats_view":170,"./timeline_view":172,"backbone.marionette":37}],170:[function(require,module,exports){
+},{"../../collections/match_events":107,"../../live/cross_tab":124,"../../persistence/base_model":135,"../../share/encode":143,"./header_view":165,"./stats_view":171,"./timeline_view":173,"backbone.marionette":37}],171:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29361,7 +29412,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/match_stats":145,"backbone.marionette":37}],171:[function(require,module,exports){
+},{"../../stats/match_stats":146,"backbone.marionette":37}],172:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29383,7 +29434,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],172:[function(require,module,exports){
+},{}],173:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29404,7 +29455,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./event_item_view":163,"backbone.marionette":37}],173:[function(require,module,exports){
+},{"./event_item_view":164,"backbone.marionette":37}],174:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29452,7 +29503,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/cards_leaderboard":143,"../helpers/escape_html":156,"backbone.marionette":37}],174:[function(require,module,exports){
+},{"../../stats/cards_leaderboard":144,"../helpers/escape_html":157,"backbone.marionette":37}],175:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29519,7 +29570,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/matches":108,"../../stats/head_to_head":144,"../helpers/escape_html":156,"../helpers/format_date":157,"backbone.marionette":37}],175:[function(require,module,exports){
+},{"../../collections/matches":108,"../../stats/head_to_head":145,"../helpers/escape_html":157,"../helpers/format_date":158,"backbone.marionette":37}],176:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29563,7 +29614,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../stats/top_scorers":147,"../helpers/escape_html":156,"backbone.marionette":37}],176:[function(require,module,exports){
+},{"../../stats/top_scorers":148,"../helpers/escape_html":157,"backbone.marionette":37}],177:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29578,7 +29629,7 @@ module.exports = (function () {
   });
 }());
 
-},{"backbone.marionette":37}],177:[function(require,module,exports){
+},{"backbone.marionette":37}],178:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29609,7 +29660,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":156}],178:[function(require,module,exports){
+},{"../helpers/escape_html":157}],179:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29665,7 +29716,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":156,"./form_template":177,"backbone.marionette":37}],179:[function(require,module,exports){
+},{"../helpers/escape_html":157,"./form_template":178,"backbone.marionette":37}],180:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29689,7 +29740,7 @@ module.exports = (function () {
   };
 }());
 
-},{}],180:[function(require,module,exports){
+},{}],181:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29711,7 +29762,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./empty_view":176,"./list_template":179,"./row_view":183,"backbone.marionette":37}],181:[function(require,module,exports){
+},{"./empty_view":177,"./list_template":180,"./row_view":184,"backbone.marionette":37}],182:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29822,7 +29873,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/matches":108,"../../stats/team_record":146,"../helpers/escape_html":156,"../helpers/sparkline":158,"backbone.marionette":37}],182:[function(require,module,exports){
+},{"../../collections/matches":108,"../../stats/team_record":147,"../helpers/escape_html":157,"../helpers/sparkline":159,"backbone.marionette":37}],183:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29850,7 +29901,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../helpers/escape_html":156}],183:[function(require,module,exports){
+},{"../helpers/escape_html":157}],184:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29879,7 +29930,7 @@ module.exports = (function () {
   });
 }());
 
-},{"./row_template":182,"backbone.marionette":37}],184:[function(require,module,exports){
+},{"./row_template":183,"backbone.marionette":37}],185:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
@@ -29942,4 +29993,4 @@ module.exports = (function () {
   });
 }());
 
-},{"../helpers/escape_html":156,"backbone.marionette":37}]},{},[124]);
+},{"../helpers/escape_html":157,"backbone.marionette":37}]},{},[125]);
