@@ -24248,6 +24248,9 @@ module.exports = (function () {
   var BaseModel = require('../persistence/base_model');
   var MatchEvents = require('../collections/match_events');
   var shareEncode = require('../share/encode');
+  var importer = require('../importer/importer');
+
+  var DEMO_VERSION = 2;
 
   var SEED_TEAMS = [
     { id: 'sao', name: 'São Paulo',   short: 'SAO',
@@ -24268,13 +24271,17 @@ module.exports = (function () {
 
   function seedChampionship() {
     var storage = BaseModel.getStorage();
-    if (!storage || storage.list('championships').length > 0) { return; }
+    if (!storage) { return; }
+    var existing = storage.read('championships', 'brasileirao-demo-2014');
+    if (existing && (existing.version || 1) >= DEMO_VERSION) { return; }
+    if (existing) { importer.wipeChampionship(storage, 'brasileirao-demo-2014'); }
     seedTeams();
     storage.create('championships', {
       id: 'brasileirao-demo-2014',
       name: 'Brasileirão Demo 2014',
       season: 2014,
       country: 'BR',
+      version: DEMO_VERSION,
       format: 'double-round-robin',
       tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
     });
@@ -24503,7 +24510,7 @@ module.exports = (function () {
   };
 }());
 
-},{"../collections/championships":106,"../collections/match_events":107,"../collections/matches":108,"../collections/teams":109,"../models/championship":126,"../models/match":127,"../models/team":133,"../persistence/base_model":135,"../share/encode":143,"../views/admin_setup_view":149,"../views/championships/form_view":152,"../views/championships/list_view":153,"../views/championships/show_view":155,"../views/home_view":161,"../views/importer_view":162,"../views/matches/list_view":166,"../views/matches/scorer_view":169,"../views/matches/show_view":170,"../views/stats/head_to_head_view":175,"../views/teams/form_view":179,"../views/teams/list_view":181,"../views/teams/profile_view":182,"./role":100,"./router":101}],104:[function(require,module,exports){
+},{"../collections/championships":106,"../collections/match_events":107,"../collections/matches":108,"../collections/teams":109,"../importer/importer":120,"../models/championship":126,"../models/match":127,"../models/team":133,"../persistence/base_model":135,"../share/encode":143,"../views/admin_setup_view":149,"../views/championships/form_view":152,"../views/championships/list_view":153,"../views/championships/show_view":155,"../views/home_view":161,"../views/importer_view":162,"../views/matches/list_view":166,"../views/matches/scorer_view":169,"../views/matches/show_view":170,"../views/stats/head_to_head_view":175,"../views/teams/form_view":179,"../views/teams/list_view":181,"../views/teams/profile_view":182,"./role":100,"./router":101}],104:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
