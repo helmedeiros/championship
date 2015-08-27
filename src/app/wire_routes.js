@@ -25,6 +25,9 @@ module.exports = (function () {
   var BaseModel = require('../persistence/base_model');
   var MatchEvents = require('../collections/match_events');
   var shareEncode = require('../share/encode');
+  var importer = require('../importer/importer');
+
+  var DEMO_VERSION = 2;
 
   var SEED_TEAMS = [
     { id: 'sao', name: 'São Paulo',   short: 'SAO',
@@ -45,13 +48,17 @@ module.exports = (function () {
 
   function seedChampionship() {
     var storage = BaseModel.getStorage();
-    if (!storage || storage.list('championships').length > 0) { return; }
+    if (!storage) { return; }
+    var existing = storage.read('championships', 'brasileirao-demo-2014');
+    if (existing && (existing.version || 1) >= DEMO_VERSION) { return; }
+    if (existing) { importer.wipeChampionship(storage, 'brasileirao-demo-2014'); }
     seedTeams();
     storage.create('championships', {
       id: 'brasileirao-demo-2014',
       name: 'Brasileirão Demo 2014',
       season: 2014,
       country: 'BR',
+      version: DEMO_VERSION,
       format: 'double-round-robin',
       tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
     });
