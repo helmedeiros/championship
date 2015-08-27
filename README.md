@@ -85,6 +85,20 @@ campeonato é bloqueada por padrão — o botão **Reimportar (substituir)**
 aparece para forçar o overwrite. O cartão **Limpar tudo** apaga todo o
 estado do navegador.
 
+### Atualização silenciosa
+
+Cada fixture carrega um campo `version` (integer). Toda vez que o app
+inicia, `src/importer/auto_update.js` compara a `version` salva no
+`localStorage` com a do código: se o cache local estiver atrasado, o
+campeonato é apagado em cascata (championship + matches + match_events)
+e reimportado silenciosamente, sem pedir ação ao usuário. O mesmo vale
+para o campeonato demo seedado (`DEMO_VERSION` em `wire_routes.js`).
+
+Quando o conteúdo de uma fixture mudar (gols adicionados, escala
+corrigida, novo evento), basta incrementar o `version`. Na próxima
+visita o cliente já vê os dados atualizados, sem precisar limpar
+`localStorage` na mão.
+
 Para adicionar um novo fixture: crie `src/data/seu_campeonato.js` exportando
 o objeto `{championship, teams, matches}`, registre em
 `src/importer/registry.js` e adicione um spec em
