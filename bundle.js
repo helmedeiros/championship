@@ -26335,6 +26335,7 @@ module.exports = (function () {
       half:   ev.half || 1,
       minute: ev.minute || 0,
       player: ev.player || null,
+      assist: ev.assist || null,
       text:   ev.text || ''
     };
   }
@@ -26512,6 +26513,7 @@ module.exports = (function () {
                   half:   { type: 'integer', minimum: 1, maximum: 4 },
                   minute: { type: 'integer', minimum: 0, maximum: 120 },
                   player: { type: ['string', 'null'] },
+                  assist: { type: ['string', 'null'] },
                   text:   { type: 'string' }
                 }
               }
