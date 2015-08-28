@@ -76,6 +76,7 @@ module.exports = (function () {
                   half:   { type: 'integer', minimum: 1, maximum: 4 },
                   minute: { type: 'integer', minimum: 0, maximum: 120 },
                   player: { type: ['string', 'null'] },
+                  assist: { type: ['string', 'null'] },
                   text:   { type: 'string' }
                 }
               }

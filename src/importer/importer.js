@@ -48,6 +48,7 @@ module.exports = (function () {
       half:   ev.half || 1,
       minute: ev.minute || 0,
       player: ev.player || null,
+      assist: ev.assist || null,
       text:   ev.text || ''
     };
   }
