@@ -52,7 +52,7 @@ module.exports = (function () {
       { type: 'goal',   half: 1, minute:  3, player: 'Cueva',
         text: '0x1 Peru' },
       { type: 'goal',   half: 1, minute: 39, player: 'Neymar',
-        text: '1x1 Brasil' },
+        assist: 'Daniel Alves', text: '1x1 Brasil' },
       { type: 'goal',   half: 2, minute: 46, player: 'Douglas Costa',
         text: '2x1 Brasil — vira no apagar das luzes' }
     ],
@@ -116,9 +116,9 @@ module.exports = (function () {
     'CHI-PER-2015-06-30': [
       { type: 'red',    half: 1, minute: 21, player: 'Carlos Zambrano' },
       { type: 'goal',   half: 1, minute: 42, player: 'Eduardo Vargas',
-        text: '1x0 Chile' },
+        assist: 'Marcelo Díaz', text: '1x0 Chile' },
       { type: 'goal',   half: 2, minute: 14, player: 'Eduardo Vargas',
-        text: '2x0 Chile' },
+        assist: 'Aránguiz', text: '2x0 Chile' },
       { type: 'goal',   half: 2, minute: 15, player: 'Paolo Guerrero',
         text: '2x1 Peru' },
       { type: 'red',    half: 2, minute: 33, player: 'Gary Medel' }
@@ -192,7 +192,7 @@ module.exports = (function () {
       { type: 'goal',   half: 2, minute:  7, player: 'Aquino',
         text: '1x2 México' },
       { type: 'goal',   half: 2, minute: 21, player: 'Alexis Sánchez',
-        text: '2x2 Chile' },
+        assist: 'Arturo Vidal', text: '2x2 Chile' },
       { type: 'goal',   half: 2, minute: 45, player: 'Vázquez',
         text: '2x3 México' },
       { type: 'goal',   half: 2, minute: 46, player: 'Eduardo Vargas',
