@@ -25536,7 +25536,7 @@ module.exports = (function () {
         text: '0x1 — gol contra de Marcelo abre a Copa' },
       { type: 'yellow', half: 1, minute: 27, player: 'Neymar' },
       { type: 'goal',   half: 1, minute: 29, player: 'Neymar',
-        text: '1x1 Brasil' },
+        assist: 'Oscar', text: '1x1 Brasil' },
       { type: 'goal',   half: 2, minute: 26, player: 'Neymar',
         text: '2x1 Brasil — pênalti' },
       { type: 'goal',   half: 2, minute: 46, player: 'Oscar',
@@ -25593,9 +25593,10 @@ module.exports = (function () {
       { type: 'goal',   half: 1, minute: 27, player: 'Xabi Alonso',
         text: '1x0 Espanha — pênalti' },
       { type: 'goal',   half: 1, minute: 44, player: 'Van Persie',
+        assist: 'Daley Blind',
         text: '1x1 Holanda — voadora histórica' },
       { type: 'goal',   half: 2, minute:  8, player: 'Robben',
-        text: '1x2 Holanda' },
+        assist: 'Sneijder', text: '1x2 Holanda' },
       { type: 'goal',   half: 2, minute: 19, player: 'De Vrij',
         text: '1x3 Holanda' },
       { type: 'goal',   half: 2, minute: 27, player: 'Van Persie',
@@ -25653,7 +25654,7 @@ module.exports = (function () {
       { type: 'goal',   half: 2, minute: 13, player: 'Gutiérrez',
         text: '2x0 Colômbia' },
       { type: 'goal',   half: 2, minute: 48, player: 'James Rodríguez',
-        text: '3x0 Colômbia' }
+        assist: 'Cuadrado', text: '3x0 Colômbia' }
     ],
     'CIV-JPN-2014-06-14': [
       { type: 'goal',   half: 1, minute: 16, player: 'Honda',
@@ -25882,6 +25883,7 @@ module.exports = (function () {
       { type: 'goal',   half: 2, minute: 36, player: 'Dempsey',
         text: '2x1 EUA' },
       { type: 'goal',   half: 2, minute: 50, player: 'Varela',
+        assist: 'Cristiano Ronaldo',
         text: '2x2 Portugal — empate no apagar das luzes' }
     ],
     'USA-GER-2014-06-26': [
@@ -25955,7 +25957,7 @@ module.exports = (function () {
       { type: 'goal',   half: 1, minute: 28, player: 'James Rodríguez',
         text: '1x0 Colômbia — voleio histórico' },
       { type: 'goal',   half: 2, minute:  5, player: 'James Rodríguez',
-        text: '2x0 Colômbia' }
+        assist: 'Cuadrado', text: '2x0 Colômbia' }
     ],
     'NED-MEX-2014-06-29': [
       { type: 'goal',   half: 2, minute:  3, player: 'Giovani dos Santos',
@@ -26031,7 +26033,7 @@ module.exports = (function () {
     'BRA-GER-2014-07-08': [
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da partida' },
       { type: 'goal',      half: 1, minute: 11, player: 'Müller',
-        text: '0x1 Alemanha' },
+        assist: 'Kroos', text: '0x1 Alemanha' },
       { type: 'goal',      half: 1, minute: 23, player: 'Klose',
         text: '0x2 Alemanha — Klose maior artilheiro de copas' },
       { type: 'goal',      half: 1, minute: 24, player: 'Kroos',
@@ -26042,9 +26044,9 @@ module.exports = (function () {
         text: '0x5 Alemanha' },
       { type: 'half_time', half: 1, minute: 47, text: 'Intervalo' },
       { type: 'goal',      half: 2, minute: 24, player: 'Schürrle',
-        text: '0x6 Alemanha' },
+        assist: 'Lahm', text: '0x6 Alemanha' },
       { type: 'goal',      half: 2, minute: 34, player: 'Schürrle',
-        text: '0x7 Alemanha' },
+        assist: 'Müller', text: '0x7 Alemanha' },
       { type: 'goal',      half: 2, minute: 45, player: 'Oscar',
         text: '1x7 Brasil — gol de honra' },
       { type: 'full_time', half: 2, minute: 47, text: 'Fim de jogo' }
@@ -26076,6 +26078,7 @@ module.exports = (function () {
       { type: 'kickoff',   half: 1, minute:  0, text: 'Início da final' },
       { type: 'half_time', half: 1, minute: 47, text: 'Intervalo' },
       { type: 'goal',      half: 3, minute: 23, player: 'Götze',
+        assist: 'Schürrle',
         text: 'Götze marca aos 113 — Alemanha campeã' },
       { type: 'full_time', half: 4, minute: 30, text: 'Alemanha tetracampeã!' }
     ]
