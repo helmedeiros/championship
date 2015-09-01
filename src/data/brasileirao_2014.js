@@ -21,7 +21,7 @@ module.exports = (function () {
       name:    'Brasileirão Série A 2014',
       season:  2014,
       country: 'BR',
-      version: 2,
+      version: 3,
       format:  'double-round-robin',
       tiebreakers: ['points', 'wins', 'goal_diff', 'goals_for', 'head_to_head']
     },
