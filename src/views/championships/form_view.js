@@ -4,6 +4,11 @@ module.exports = (function () {
   var Marionette = require('backbone.marionette');
   var template = require('./form_template');
   var escapeHtml = require('../helpers/escape_html');
+  var TiebreakerEditor = require('./tiebreaker_editor');
+
+  var DEFAULT_TIEBREAKERS = [
+    'points', 'wins', 'goal_diff', 'goals_for', 'head_to_head'
+  ];
 
   return Marionette.ItemView.extend({
 
@@ -17,6 +22,19 @@ module.exports = (function () {
     initialize: function (options) {
       var opts = options || {};
       this.availableTeams = opts.availableTeams || [];
+      var stored = this.model.get('tiebreakers');
+      this.tiebreakerEditor = new TiebreakerEditor({
+        selected: (stored && stored.length) ? stored : DEFAULT_TIEBREAKERS
+      });
+    },
+
+    onRender: function () {
+      this.tiebreakerEditor.render();
+      this.$('.tiebreaker-region').empty().append(this.tiebreakerEditor.el);
+    },
+
+    onDestroy: function () {
+      if (this.tiebreakerEditor) { this.tiebreakerEditor.destroy(); }
     },
 
     serializeData: function () {
@@ -38,10 +56,11 @@ module.exports = (function () {
       }).get();
       var rawSeason = this.$('input[name="season"]').val();
       var attrs = {
-        name:    this.$('input[name="name"]').val(),
-        season:  rawSeason === '' ? null : parseInt(rawSeason, 10),
-        country: this.$('input[name="country"]').val(),
-        format:  this.$('input[name="format"]:checked').val() || 'league'
+        name:        this.$('input[name="name"]').val(),
+        season:      rawSeason === '' ? null : parseInt(rawSeason, 10),
+        country:     this.$('input[name="country"]').val(),
+        format:      this.$('input[name="format"]:checked').val() || 'league',
+        tiebreakers: this.tiebreakerEditor.value()
       };
       if (!this.model.set(attrs, { validate: true })) {
         this.showError(this.model.validationError);

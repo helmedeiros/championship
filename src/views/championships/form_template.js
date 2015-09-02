@@ -65,6 +65,10 @@ module.exports = (function () {
           '<label>Times participantes</label>' +
           teamsCheckboxes(data.availableTeams || [], data.teamIds) +
         '</div>' +
+        '<div class="form-group tiebreakers-group">' +
+          '<label>Critérios de desempate (em ordem)</label>' +
+          '<div class="tiebreaker-region"></div>' +
+        '</div>' +
         '<div class="form-actions">' +
           '<button type="submit" class="btn btn-primary">Criar e gerar calendário</button>' +
           '<button type="button" class="btn btn-default cancel">Cancelar</button>' +
