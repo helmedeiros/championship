@@ -5,6 +5,7 @@ module.exports = (function () {
   var escapeHtml = require('../helpers/escape_html');
   var ClassificationTableView = require('../classification/table_view');
   var TopScorersView = require('../stats/top_scorers_view');
+  var TopAssistersView = require('../stats/top_assisters_view');
   var CardsLeaderboardView = require('../stats/cards_leaderboard_view');
   var MatchEvents = require('../../collections/match_events');
   var BaseModel = require('../../persistence/base_model');
@@ -37,13 +38,19 @@ module.exports = (function () {
           data.finishedMatches + '</strong></p>' +
         '</section>' +
         '<div class="row">' +
-          '<div class="col-md-6">' +
+          '<div class="col-md-4">' +
             '<section class="top-scorers-section">' +
               '<h3>Artilheiros</h3>' +
               '<div class="top-scorers-region"></div>' +
             '</section>' +
           '</div>' +
-          '<div class="col-md-6">' +
+          '<div class="col-md-4">' +
+            '<section class="top-assisters-section">' +
+              '<h3>Assistências</h3>' +
+              '<div class="top-assisters-region"></div>' +
+            '</section>' +
+          '</div>' +
+          '<div class="col-md-4">' +
             '<section class="cards-leaderboard-section">' +
               '<h3>Disciplina</h3>' +
               '<div class="cards-region"></div>' +
@@ -55,6 +62,7 @@ module.exports = (function () {
     regions: {
       classificationRegion: '.classification-region',
       topScorersRegion:     '.top-scorers-region',
+      topAssistersRegion:   '.top-assisters-region',
       cardsRegion:          '.cards-region'
     },
 
@@ -109,6 +117,9 @@ module.exports = (function () {
       var events = this._loadEventsForChampionship();
       this.getRegion('topScorersRegion').show(
         new TopScorersView({ matchEvents: events })
+      );
+      this.getRegion('topAssistersRegion').show(
+        new TopAssistersView({ matchEvents: events })
       );
       this.getRegion('cardsRegion').show(
         new CardsLeaderboardView({ matchEvents: events })
