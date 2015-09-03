@@ -22,6 +22,7 @@ module.exports = (function () {
     initialize: function (options) {
       var opts = options || {};
       this.availableTeams = opts.availableTeams || [];
+      this.mode = opts.mode || 'new';
       var stored = this.model.get('tiebreakers');
       this.tiebreakerEditor = new TiebreakerEditor({
         selected: (stored && stored.length) ? stored : DEFAULT_TIEBREAKERS
@@ -31,6 +32,10 @@ module.exports = (function () {
     onRender: function () {
       this.tiebreakerEditor.render();
       this.$('.tiebreaker-region').empty().append(this.tiebreakerEditor.el);
+      if (this.mode === 'edit') {
+        this.$('.teams-group, [name="startDate"]').closest('.form-group').hide();
+        this.$('button[type="submit"]').text('Salvar alterações');
+      }
     },
 
     onDestroy: function () {

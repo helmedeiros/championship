@@ -220,6 +220,23 @@ module.exports = (function () {
       });
       app.getRegion('mainRegion').show(form);
     };
+    controller['admin.championshipEdit'] = function (id) {
+      var champ = new Championship({ id: id });
+      champ.fetch();
+      var form = new ChampionshipFormView({ model: champ, mode: 'edit' });
+      form.on('form:saved', function (saved) {
+        flash('Critérios e metadados atualizados.', 'success');
+        BackboneDep.history.navigate(
+          'campeonatos/' + saved.id, { trigger: true }
+        );
+      });
+      form.on('form:cancel', function () {
+        BackboneDep.history.navigate(
+          'campeonatos/' + id, { trigger: true }
+        );
+      });
+      app.getRegion('mainRegion').show(form);
+    };
   }
 
   function wireMatchRoutes(app, controller, flash) {

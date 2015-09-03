@@ -18,6 +18,7 @@ module.exports = (function () {
       'admin/setup':            'adminSetup',
       'admin/campeonatos':      'admin.championshipsList',
       'admin/campeonatos/novo': 'admin.championshipNew',
+      'admin/campeonatos/:id/editar': 'admin.championshipEdit',
       'admin/times':            'admin.teamsList',
       'admin/times/novo':       'admin.teamNew',
       'admin/times/:id':        'admin.teamEdit',
