@@ -28287,6 +28287,7 @@ module.exports = (function () {
   var CardsLeaderboardView = require('../stats/cards_leaderboard_view');
   var MatchEvents = require('../../collections/match_events');
   var BaseModel = require('../../persistence/base_model');
+  var role = require('../../app/role');
 
   var FORMAT_LABELS = {
     'league': 'Pontos corridos',
@@ -28300,6 +28301,10 @@ module.exports = (function () {
     className: 'championship-show',
 
     template: function (data) {
+      var editLink = data.isAdmin ?
+        ' <a class="btn btn-xs btn-default edit-config-link" href="#/admin/' +
+          'campeonatos/' + encodeURIComponent(data.id) + '/editar">' +
+          'Editar critérios</a>' : '';
       return '' +
         '<header class="page-header">' +
           '<h1>' + escapeHtml(data.name) +
@@ -28307,6 +28312,7 @@ module.exports = (function () {
           escapeHtml(data.country) + '</small></h1>' +
           '<p class="format-badge">' +
           escapeHtml(FORMAT_LABELS[data.format] || data.format) +
+          editLink +
           '</p>' +
         '</header>' +
         '<section class="classification-region"></section>' +
@@ -28348,12 +28354,14 @@ module.exports = (function () {
       var matches = this.model.matches();
       var finished = matches.filter(function (m) { return m.isFinished(); });
       return {
+        id: this.model.id,
         name: this.model.get('name'),
         season: this.model.get('season') || '',
         country: this.model.get('country') || '',
         format: this.model.get('format'),
         totalMatches: matches.length,
-        finishedMatches: finished.length
+        finishedMatches: finished.length,
+        isAdmin: role.isAdmin()
       };
     },
 
@@ -28407,7 +28415,7 @@ module.exports = (function () {
   });
 }());
 
-},{"../../collections/match_events":107,"../../persistence/base_model":135,"../classification/table_view":158,"../helpers/escape_html":159,"../stats/cards_leaderboard_view":176,"../stats/top_assisters_view":178,"../stats/top_scorers_view":179,"backbone.marionette":37}],157:[function(require,module,exports){
+},{"../../app/role":100,"../../collections/match_events":107,"../../persistence/base_model":135,"../classification/table_view":158,"../helpers/escape_html":159,"../stats/cards_leaderboard_view":176,"../stats/top_assisters_view":178,"../stats/top_scorers_view":179,"backbone.marionette":37}],157:[function(require,module,exports){
 module.exports = (function () {
   'use strict';
 
