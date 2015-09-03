@@ -24185,6 +24185,7 @@ module.exports = (function () {
       'admin/setup':            'adminSetup',
       'admin/campeonatos':      'admin.championshipsList',
       'admin/campeonatos/novo': 'admin.championshipNew',
+      'admin/campeonatos/:id/editar': 'admin.championshipEdit',
       'admin/times':            'admin.teamsList',
       'admin/times/novo':       'admin.teamNew',
       'admin/times/:id':        'admin.teamEdit',
@@ -24440,6 +24441,23 @@ module.exports = (function () {
       });
       form.on('form:cancel', function () {
         BackboneDep.history.navigate('campeonatos', { trigger: true });
+      });
+      app.getRegion('mainRegion').show(form);
+    };
+    controller['admin.championshipEdit'] = function (id) {
+      var champ = new Championship({ id: id });
+      champ.fetch();
+      var form = new ChampionshipFormView({ model: champ, mode: 'edit' });
+      form.on('form:saved', function (saved) {
+        flash('Critérios e metadados atualizados.', 'success');
+        BackboneDep.history.navigate(
+          'campeonatos/' + saved.id, { trigger: true }
+        );
+      });
+      form.on('form:cancel', function () {
+        BackboneDep.history.navigate(
+          'campeonatos/' + id, { trigger: true }
+        );
       });
       app.getRegion('mainRegion').show(form);
     };
@@ -28109,6 +28127,7 @@ module.exports = (function () {
     initialize: function (options) {
       var opts = options || {};
       this.availableTeams = opts.availableTeams || [];
+      this.mode = opts.mode || 'new';
       var stored = this.model.get('tiebreakers');
       this.tiebreakerEditor = new TiebreakerEditor({
         selected: (stored && stored.length) ? stored : DEFAULT_TIEBREAKERS
@@ -28118,6 +28137,10 @@ module.exports = (function () {
     onRender: function () {
       this.tiebreakerEditor.render();
       this.$('.tiebreaker-region').empty().append(this.tiebreakerEditor.el);
+      if (this.mode === 'edit') {
+        this.$('.teams-group, [name="startDate"]').closest('.form-group').hide();
+        this.$('button[type="submit"]').text('Salvar alterações');
+      }
     },
 
     onDestroy: function () {
