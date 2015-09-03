@@ -37,7 +37,8 @@ describe('views/championships/ShowView', function () {
   it('mostra rótulo legível do formato', function () {
     var view = new ShowView({ model: champ });
     view.render();
-    expect(view.$('.format-badge').text()).to.equal('Pontos corridos (ida e volta)');
+    expect(view.$('.format-badge').text())
+      .to.match(/^Pontos corridos \(ida e volta\)/);
   });
 
   it('mostra contagem de partidas total e finalizadas', function () {
