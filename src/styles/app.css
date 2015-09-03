@@ -295,6 +295,52 @@ body {
   background: #fffaf3;
 }
 
+.tiebreaker-editor .tiebreaker-list {
+  margin: 0;
+  padding: 0;
+}
+
+.tiebreaker-editor .tiebreaker-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  background: #f6f6f6;
+  border: 1px solid #e0e0e0;
+  border-radius: 3px;
+}
+
+.tiebreaker-editor .tiebreaker-pos {
+  display: inline-block;
+  width: 22px;
+  text-align: center;
+  margin-right: 8px;
+  font-weight: bold;
+  color: #888;
+}
+
+.tiebreaker-editor .tiebreaker-label {
+  flex: 1;
+}
+
+.tiebreaker-editor .tiebreaker-actions {
+  white-space: nowrap;
+}
+
+.tiebreaker-editor .tiebreaker-add {
+  margin-top: 6px;
+}
+
+.tiebreaker-editor .tiebreaker-add .form-control {
+  display: inline-block;
+  max-width: 280px;
+}
+
+.edit-config-link {
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
 .skip-link {
   position: absolute;
   left: -9999px;
