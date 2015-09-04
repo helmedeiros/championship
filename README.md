@@ -33,6 +33,8 @@ Públicas:
 - `#/admin/times/novo` — cadastrar time
 - `#/admin/times/:id` — editar time existente
 - `#/admin/campeonatos/novo` — cadastrar campeonato e gerar calendário
+- `#/admin/campeonatos/:id/editar` — editar metadados e reordenar
+  critérios de desempate de um campeonato existente
 - `#/admin/partidas/:id/scoreboard` — placar ao vivo com botões de gol,
   cartão, substituição e comentário. Mudanças se propagam para outras abas
   via evento `storage` do navegador.
@@ -49,6 +51,9 @@ Públicas:
 - **Classificação**: tabela completa P / J / V / E / D / GP / GC / SG / % com
   sparkline SVG de últimos 5 jogos e zonas coloridas (Libertadores, rebaixamento).
 - **Artilheiros** (`stats/top_scorers`): ranking por gols, suporta `limit`.
+- **Assistências** (`stats/top_assisters`): ranking por passes para gol;
+  cada evento `goal` pode carregar um campo opcional `assist` com o
+  jogador que tocou pra ele.
 - **Disciplina** (`stats/cards_leaderboard`): ranking por cartões com vermelho
   contando como 2 na pontuação.
 - **Head-to-head** (`stats/head_to_head`): vitórias/empates/derrotas e lista de
