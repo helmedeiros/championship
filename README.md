@@ -196,3 +196,7 @@ podem ser adicionadas em `src/i18n/messages_pt_br.js` e
 ## Licença
 
 MIT — veja `LICENSE`.
+
+## License
+
+[MIT](LICENSE)
